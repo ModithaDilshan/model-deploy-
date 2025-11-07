@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+
+# Uploads and temporary files
+uploads/
+*.backup
+
+# Unity project generated folders
+My project (1)/Library/
+My project (1)/Temp/
+My project (1)/Logs/
+My project (1)/obj/
+My project (1)/Builds/
+My project (1)/UserSettings/
+My project (1)/.vs/
+My project (1)/**/DerivedDataCache/
+
+# Build outputs
+*.exe
+Builds/
+
+# Environment variables
+.env
+.env.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Existing PDF files (keep them but ignore in future)
+# Unity_Game_Builder_Project_Summary_*.pdf
+

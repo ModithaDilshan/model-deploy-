@@ -1,0 +1,158 @@
+require('dotenv').config();
+const path = require('path');
+const os = require('os');
+const fs = require('fs-extra');
+const { exec } = require('child_process');
+const { GetObjectCommand, PutObjectCommand } = require('@aws-sdk/client-s3');
+const config = require('../config');
+const { s3Client } = require('../aws/clients');
+const { receiveJobMessages, deleteJobMessage } = require('../services/queueService');
+const { getJob, markJobStatus } = require('../services/jobService');
+
+const TEMP_DIR = path.join(os.tmpdir(), 'unity-build-worker');
+fs.ensureDirSync(TEMP_DIR);
+
+async function downloadS3Object(bucket, key, destination) {
+  const response = await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+  await fs.ensureDir(path.dirname(destination));
+
+  return new Promise((resolve, reject) => {
+    const writeStream = fs.createWriteStream(destination);
+    response.Body.pipe(writeStream);
+    response.Body.on('error', reject);
+    writeStream.on('error', reject);
+    writeStream.on('close', resolve);
+  });
+}
+
+async function uploadS3Object(bucket, key, filePath, contentType = 'application/octet-stream') {
+  const fileStream = fs.createReadStream(filePath);
+  await s3Client.send(new PutObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    Body: fileStream,
+    ContentType: contentType
+  }));
+}
+
+function execAsync(command, options = {}) {
+  return new Promise((resolve, reject) => {
+    exec(command, { maxBuffer: 1024 * 1024 * 50, ...options }, (error, stdout, stderr) => {
+      if (error) {
+        error.stdout = stdout;
+        error.stderr = stderr;
+        return reject(error);
+      }
+      resolve({ stdout, stderr });
+    });
+  });
+}
+
+async function processJobMessage(message) {
+  let jobId;
+  try {
+    const body = JSON.parse(message.Body || '{}');
+    jobId = body.jobId;
+    if (!jobId) {
+      throw new Error('Job ID missing from message');
+    }
+
+    const job = await getJob(jobId);
+    if (!job) {
+      throw new Error(`Job ${jobId} not found`);
+    }
+
+    console.log(`[Worker] Processing job ${jobId}`);
+    await markJobStatus(jobId, 'processing', { startedAt: new Date().toISOString() });
+
+    const assetKey = job.assetKey;
+    const assetExt = path.extname(assetKey) || '.fbx';
+    const tempAssetPath = path.join(TEMP_DIR, `${jobId}${assetExt}`);
+
+    await downloadS3Object(config.UPLOADS_BUCKET, assetKey, tempAssetPath);
+
+    const targetBasePath = path.join(config.UNITY_PROJECT_PATH, config.MODEL_TARGET_BASE);
+    const targetDir = path.dirname(targetBasePath);
+    const targetFilePath = `${targetBasePath}${assetExt}`;
+
+    await fs.ensureDir(targetDir);
+
+    if (await fs.pathExists(targetFilePath)) {
+      await fs.copy(targetFilePath, `${targetFilePath}.backup`);
+    }
+
+    await fs.copy(tempAssetPath, targetFilePath);
+
+    const siblingFiles = await fs.readdir(targetDir);
+    const configuredBaseName = path.basename(targetBasePath);
+    for (const name of siblingFiles) {
+      if (!name.startsWith(configuredBaseName)) continue;
+      if (name === path.basename(targetFilePath)) continue;
+      const filePath = path.join(targetDir, name);
+      await fs.remove(filePath).catch(() => {});
+    }
+
+    const unityLogPath = path.join(config.UNITY_PROJECT_PATH, 'BuildWorker.log');
+    const buildOutputPath = path.join(config.UNITY_PROJECT_PATH, config.BUILD_OUTPUT_PATH);
+
+    await execAsync(
+      `"${config.UNITY_EDITOR_PATH}" -quit -batchmode -projectPath "${config.UNITY_PROJECT_PATH}" -executeMethod ${config.BUILD_METHOD} -logFile "${unityLogPath}"`,
+      { env: process.env }
+    );
+
+    if (!(await fs.pathExists(buildOutputPath))) {
+      throw new Error('Unity build completed but output file was not found');
+    }
+
+    const buildKey = `builds/${jobId}/${path.basename(buildOutputPath)}`;
+    await uploadS3Object(config.BUILDS_BUCKET, buildKey, buildOutputPath, 'application/vnd.microsoft.portable-executable');
+
+    await markJobStatus(jobId, 'completed', {
+      buildKey,
+      completedAt: new Date().toISOString()
+    });
+
+    console.log(`[Worker] Job ${jobId} completed successfully`);
+  } catch (error) {
+    console.error(`[Worker] Job processing failed: ${error.message}`);
+    if (jobId) {
+      await markJobStatus(jobId, 'failed', {
+        errorMessage: error.message,
+        failedAt: new Date().toISOString()
+      }).catch((updateErr) => {
+        console.error('[Worker] Failed to update job status:', updateErr.message);
+      });
+    }
+  } finally {
+    if (message.ReceiptHandle) {
+      await deleteJobMessage(message.ReceiptHandle).catch((err) => {
+        console.error('[Worker] Failed to delete SQS message:', err.message);
+      });
+    }
+  }
+}
+
+async function pollQueue() {
+  try {
+    const messages = await receiveJobMessages({
+      maxNumber: config.WORKER_MAX_CONCURRENT_JOBS,
+      waitTimeSeconds: 20,
+      visibilityTimeout: 300
+    });
+
+    if (!messages.length) {
+      return;
+    }
+
+    for (const message of messages) {
+      await processJobMessage(message);
+    }
+  } catch (error) {
+    console.error('[Worker] Poll error:', error.message);
+  }
+}
+
+console.log('Unity build worker started. Polling queue...');
+setInterval(pollQueue, config.WORKER_POLL_INTERVAL);
+pollQueue();
+

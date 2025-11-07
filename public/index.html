@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unity Game Builder</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Unity Game Builder</h1>
+            <p class="subtitle">Upload your 3D model and build your custom game</p>
+        </header>
+
+        <main>
+            <!-- Upload Section -->
+            <section class="upload-section">
+                <h2>Step 1: Upload 3D Model</h2>
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-content">
+                        <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        <p class="upload-text">Drag and drop your 3D model here</p>
+                        <p class="upload-subtext">or</p>
+                        <input type="file" id="fileInput" accept=".fbx,.obj" style="display: none;">
+                        <button class="btn btn-primary" id="chooseFileBtn">Choose File</button>
+                        <p class="file-info">Supported formats: .fbx, .obj (Max 100MB)</p>
+                    </div>
+                </div>
+
+                <div id="fileInfo" class="file-info-section" style="display: none;">
+                    <div class="file-details">
+                        <span class="file-icon">📁</span>
+                        <div class="file-text">
+                            <p class="file-name" id="fileName"></p>
+                            <p class="file-size" id="fileSize"></p>
+                        </div>
+                    </div>
+                    <button class="btn btn-success" id="uploadBtn">Upload Model</button>
+                </div>
+            </section>
+
+            <!-- Status Section -->
+            <section class="status-section">
+                <div id="status" class="status-message" style="display: none;"></div>
+            </section>
+
+            <!-- Build Section -->
+            <section class="build-section" id="buildSection" style="display: none;">
+                <h2>Step 2: Build Game</h2>
+                <p class="section-description">Once your model is uploaded, click the button below to start building your game.</p>
+                <button class="btn btn-build" id="buildBtn">Build Game</button>
+                
+                <div id="buildStatus" class="build-status" style="display: none;">
+                    <div class="progress-container">
+                        <div class="progress-bar" id="progressBar"></div>
+                    </div>
+                    <p class="status-text" id="statusText">Preparing build...</p>
+                </div>
+            </section>
+
+            <!-- Download Section -->
+            <section class="download-section" id="downloadSection" style="display: none;">
+                <h2>Step 3: Download Game</h2>
+                <div class="download-content">
+                    <div class="success-icon">✓</div>
+                    <p class="success-message">Your game has been built successfully!</p>
+                    <a id="downloadLink" href="#" class="btn btn-download">Download Game</a>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>Unity Game Builder &copy; 2025</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
+

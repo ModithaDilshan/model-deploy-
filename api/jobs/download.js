@@ -1,5 +1,5 @@
-const { getJob } = require('../../../services/jobService');
-const { createPresignedDownload } = require('../../../services/s3Service');
+const { getJob } = require('../../services/jobService');
+const { createPresignedDownload } = require('../../services/s3Service');
 
 module.exports = async (req, res) => {
   if (req.method !== 'GET') {
@@ -8,7 +8,10 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const jobId = req.query.jobId;
+    const { jobId } = req.query || {};
+    if (!jobId) {
+      return res.status(400).json({ success: false, error: 'jobId is required' });
+    }
     const job = await getJob(jobId);
 
     if (!job) {

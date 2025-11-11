@@ -184,7 +184,7 @@ async function checkJobStatus() {
   if (!currentJobId) return;
 
   try {
-    const response = await fetch(`/api/jobs/${currentJobId}`);
+    const response = await fetch(`/api/jobs?jobId=${encodeURIComponent(currentJobId)}`);
     const result = await response.json();
     if (!response.ok || !result.success) {
       throw new Error(result.error || 'Failed to fetch job status');
@@ -235,7 +235,7 @@ async function handleCompletedJob(job) {
   showStatus('Build completed! Preparing your download...', 'success');
 
   try {
-    const response = await fetch(`/api/jobs/${job.jobId}/download`);
+    const response = await fetch(`/api/jobs/download?jobId=${encodeURIComponent(job.jobId)}`);
     const result = await response.json();
     if (!response.ok || !result.success) {
       throw new Error(result.error || 'Failed to generate download link');

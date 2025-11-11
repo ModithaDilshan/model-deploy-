@@ -71,46 +71,69 @@ async function processJobMessage(message) {
 
     await downloadS3Object(config.UPLOADS_BUCKET, assetKey, tempAssetPath);
 
-    const targetBasePath = path.join(config.UNITY_PROJECT_PATH, config.MODEL_TARGET_BASE);
-    const targetDir = path.dirname(targetBasePath);
-    const targetFilePath = `${targetBasePath}${assetExt}`;
+    let buildKey;
+    if (config.PREBUILT_EXECUTABLE) {
+      const prebuiltPath = path.resolve(config.PREBUILT_EXECUTABLE);
+      if (!(await fs.pathExists(prebuiltPath))) {
+        throw new Error(`Prebuilt executable not found at ${prebuiltPath}`);
+      }
 
-    await fs.ensureDir(targetDir);
+      const tempOutputPath = path.join(TEMP_DIR, `${jobId}-${path.basename(prebuiltPath)}`);
+      await fs.copy(prebuiltPath, tempOutputPath);
 
-    if (await fs.pathExists(targetFilePath)) {
-      await fs.copy(targetFilePath, `${targetFilePath}.backup`);
+      buildKey = `builds/${jobId}/${path.basename(prebuiltPath)}`;
+      await uploadS3Object(config.BUILDS_BUCKET, buildKey, tempOutputPath, 'application/vnd.microsoft.portable-executable');
+
+      await markJobStatus(jobId, 'completed', {
+        buildKey,
+        completedAt: new Date().toISOString(),
+        buildStrategy: 'prebuilt',
+        prebuiltSource: prebuiltPath
+      });
+      await fs.remove(tempOutputPath).catch(() => {});
+    } else {
+      const targetBasePath = path.join(config.UNITY_PROJECT_PATH, config.MODEL_TARGET_BASE);
+      const targetDir = path.dirname(targetBasePath);
+      const targetFilePath = `${targetBasePath}${assetExt}`;
+
+      await fs.ensureDir(targetDir);
+
+      if (await fs.pathExists(targetFilePath)) {
+        await fs.copy(targetFilePath, `${targetFilePath}.backup`);
+      }
+
+      await fs.copy(tempAssetPath, targetFilePath);
+
+      const siblingFiles = await fs.readdir(targetDir);
+      const configuredBaseName = path.basename(targetBasePath);
+      for (const name of siblingFiles) {
+        if (!name.startsWith(configuredBaseName)) continue;
+        if (name === path.basename(targetFilePath)) continue;
+        const filePath = path.join(targetDir, name);
+        await fs.remove(filePath).catch(() => {});
+      }
+
+      const unityLogPath = path.join(config.UNITY_PROJECT_PATH, 'BuildWorker.log');
+      const buildOutputPath = path.join(config.UNITY_PROJECT_PATH, config.BUILD_OUTPUT_PATH);
+
+      await execAsync(
+        `"${config.UNITY_EDITOR_PATH}" -quit -batchmode -projectPath "${config.UNITY_PROJECT_PATH}" -executeMethod ${config.BUILD_METHOD} -logFile "${unityLogPath}"`,
+        { env: process.env }
+      );
+
+      if (!(await fs.pathExists(buildOutputPath))) {
+        throw new Error('Unity build completed but output file was not found');
+      }
+
+      buildKey = `builds/${jobId}/${path.basename(buildOutputPath)}`;
+      await uploadS3Object(config.BUILDS_BUCKET, buildKey, buildOutputPath, 'application/vnd.microsoft.portable-executable');
+
+      await markJobStatus(jobId, 'completed', {
+        buildKey,
+        completedAt: new Date().toISOString(),
+        buildStrategy: 'unity-build'
+      });
     }
-
-    await fs.copy(tempAssetPath, targetFilePath);
-
-    const siblingFiles = await fs.readdir(targetDir);
-    const configuredBaseName = path.basename(targetBasePath);
-    for (const name of siblingFiles) {
-      if (!name.startsWith(configuredBaseName)) continue;
-      if (name === path.basename(targetFilePath)) continue;
-      const filePath = path.join(targetDir, name);
-      await fs.remove(filePath).catch(() => {});
-    }
-
-    const unityLogPath = path.join(config.UNITY_PROJECT_PATH, 'BuildWorker.log');
-    const buildOutputPath = path.join(config.UNITY_PROJECT_PATH, config.BUILD_OUTPUT_PATH);
-
-    await execAsync(
-      `"${config.UNITY_EDITOR_PATH}" -quit -batchmode -projectPath "${config.UNITY_PROJECT_PATH}" -executeMethod ${config.BUILD_METHOD} -logFile "${unityLogPath}"`,
-      { env: process.env }
-    );
-
-    if (!(await fs.pathExists(buildOutputPath))) {
-      throw new Error('Unity build completed but output file was not found');
-    }
-
-    const buildKey = `builds/${jobId}/${path.basename(buildOutputPath)}`;
-    await uploadS3Object(config.BUILDS_BUCKET, buildKey, buildOutputPath, 'application/vnd.microsoft.portable-executable');
-
-    await markJobStatus(jobId, 'completed', {
-      buildKey,
-      completedAt: new Date().toISOString()
-    });
 
     console.log(`[Worker] Job ${jobId} completed successfully`);
   } catch (error) {

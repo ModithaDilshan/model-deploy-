@@ -34,6 +34,9 @@ module.exports = {
   WORKER_POLL_INTERVAL: parseNumber(process.env.WORKER_POLL_INTERVAL, 5000), // ms
   WORKER_MAX_CONCURRENT_JOBS: parseNumber(process.env.WORKER_MAX_CONCURRENT_JOBS, 1),
 
+  // Prebuilt executable (optional). When set, worker skips Unity build and uploads this file instead.
+  PREBUILT_EXECUTABLE: process.env.PREBUILT_EXECUTABLE || null,
+
   // SERVER SETTINGS
   PORT: parseNumber(process.env.PORT, 3000)
 };

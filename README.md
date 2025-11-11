@@ -50,6 +50,7 @@ npm install
 | `DOWNLOAD_URL_TTL` | Seconds that presigned download URLs remain valid (default 900) |
 | `WORKER_POLL_INTERVAL` | Milliseconds between SQS polls (default 5000) |
 | `WORKER_MAX_CONCURRENT_JOBS` | Number of SQS messages to process per poll (default 1) |
+| `PREBUILT_EXECUTABLE` | Absolute path to a prebuilt `.exe` to serve instead of running Unity (optional) |
 
 Create a `.env` file with the values above for local development. Deployments (Vercel, build servers) should set the same variables via their configuration systems.
 
@@ -93,7 +94,7 @@ For completed jobs, returns a presigned S3 URL to download the generated executa
 
 ## Build worker (`worker/index.js`)
 
-Run on a Windows machine with Unity installed:
+Run on a Windows machine:
 
 ```bash
 npm run worker
@@ -102,10 +103,9 @@ npm run worker
 Responsibilities:
 
 - Poll the SQS queue for jobs.
-- Download uploaded assets from the uploads bucket.
-- Copy the asset into the Unity project (`MODEL_TARGET_BASE` + extension).
-- Run Unity in batch mode using the configured method.
-- Upload the resulting executable to the builds bucket.
+- Download uploaded assets from the uploads bucket (optional – useful for auditing).
+- Either upload a prebuilt executable (when `PREBUILT_EXECUTABLE` is set) **or** swap the model into the Unity project and run the Unity CLI build.
+- Upload the executable to the builds bucket.
 - Update job status in DynamoDB.
 
 ## Sample Unity project (included)
@@ -140,11 +140,11 @@ Use `sample_models/SampleCharacter.obj` to test the pipeline locally.
 ### 3. Provision the build worker server
 
 1. Provision a Windows machine (EC2, bare metal, etc.) with sufficient CPU/RAM.
-2. Install Unity (matching the version used to author the project).
+2. Install Unity (matching the version used to author the project) **only if you plan to run fresh builds**. If you use a prebuilt executable, Unity is optional.
 3. Install Node.js.
 4. Pull this repository onto the server and run `npm install`.
-5. Copy the Unity project (`My project (1)`) to `UNITY_PROJECT_PATH`.
-6. Create a `.env` containing the same AWS configuration plus Unity paths.
+5. Copy the Unity project (`My project (1)`) to `UNITY_PROJECT_PATH` **if** you’ll build on demand.
+6. Create a `.env` containing the AWS configuration, Unity paths (when required), and optionally `PREBUILT_EXECUTABLE=D:/path/to/MyGame.exe`.
 7. Run `npm run worker` (use a Windows service or Task Scheduler to keep it running).
 
 ### 4. Validate end-to-end flow
@@ -152,7 +152,7 @@ Use `sample_models/SampleCharacter.obj` to test the pipeline locally.
 1. Open the deployed Vercel site.
 2. Upload `sample_models/SampleCharacter.obj` → file stored in uploads bucket.
 3. Confirm a job record appears in DynamoDB with status `queued`.
-4. Worker picks up the job, runs Unity, uploads build to `builds/` prefix.
+4. Worker picks up the job and either uploads the prebuilt executable or runs Unity and uploads the build to the `builds/` prefix.
 5. Job status becomes `completed`; the download button returns a presigned URL.
 6. Download `MyGame.exe` and run locally to verify the new character model.
 

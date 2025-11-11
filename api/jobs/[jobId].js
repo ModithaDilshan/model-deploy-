@@ -1,4 +1,4 @@
-const { getJob } = require('../../../services/jobService');
+const { getJob } = require('../../services/jobService');
 
 module.exports = async (req, res) => {
   if (req.method !== 'GET') {

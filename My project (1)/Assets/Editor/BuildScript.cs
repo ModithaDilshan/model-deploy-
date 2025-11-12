@@ -18,11 +18,26 @@ public static class BuildScript
         BuildGame();
     }
 
-    public static void BuildGame()
+    [MenuItem("Build/Build WebGL")]
+    public static void BuildWebGLFromMenu()
+    {
+        BuildWebGL();
+    }
+
+    public static void BuildGame(BuildTarget target = BuildTarget.StandaloneWindows64)
     {
         string projectPath = Application.dataPath;
         string buildDirectory = Path.Combine(projectPath, "..", "Builds");
-        string outputPath = Path.Combine(buildDirectory, OutputFileName);
+        string outputPath;
+
+        if (target == BuildTarget.WebGL)
+        {
+            outputPath = Path.Combine(buildDirectory, "WebGL");
+        }
+        else
+        {
+            outputPath = Path.Combine(buildDirectory, OutputFileName);
+        }
 
         if (!Directory.Exists(buildDirectory))
         {
@@ -35,7 +50,7 @@ public static class BuildScript
         {
             scenes = ScenesToBuild,
             locationPathName = outputPath,
-            target = BuildTarget.StandaloneWindows64,
+            target = target,
             options = BuildOptions.None
         };
 
@@ -46,6 +61,11 @@ public static class BuildScript
         }
 
         Debug.Log($"Build completed successfully: {outputPath}");
+    }
+
+    public static void BuildWebGL()
+    {
+        BuildGame(BuildTarget.WebGL);
     }
 }
 #endif

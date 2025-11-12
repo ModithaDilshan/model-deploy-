@@ -3,6 +3,7 @@ let selectedFile = null;
 let uploadedAssetKey = null;
 let currentJobId = null;
 let statusPollInterval = null;
+let selectedBuildType = 'exe'; // Default to 'exe'
 
 // Elements
 const fileInput = document.getElementById('fileInput');
@@ -55,6 +56,14 @@ function initListeners() {
 
   uploadBtn.addEventListener('click', handleUploadClicked);
   buildBtn.addEventListener('click', handleBuildClicked);
+  
+  // Build type selector listeners
+  const buildTypeRadios = document.querySelectorAll('input[name="buildType"]');
+  buildTypeRadios.forEach(radio => {
+    radio.addEventListener('change', (event) => {
+      selectedBuildType = event.target.value;
+    });
+  });
 }
 
 function processSelectedFile(file) {
@@ -149,12 +158,17 @@ async function handleBuildClicked() {
   showStatus('Build started. This may take several minutes.', 'info');
 
   try {
+    // Get selected build type
+    const buildTypeRadio = document.querySelector('input[name="buildType"]:checked');
+    const buildType = buildTypeRadio ? buildTypeRadio.value : 'exe';
+    
     const response = await fetch('/api/jobs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         assetKey: uploadedAssetKey,
-        originalFileName: selectedFile ? selectedFile.name : null
+        originalFileName: selectedFile ? selectedFile.name : null,
+        buildType: buildType
       })
     });
 
@@ -206,13 +220,16 @@ async function checkJobStatus() {
 }
 
 function updateProgress(job) {
+  const buildType = job.buildType || 'exe';
+  const buildTypeLabel = buildType === 'webgl' ? 'WebGL' : 'EXE';
+  
   switch (job.status) {
     case 'queued':
-      statusText.textContent = 'Waiting in queue...';
+      statusText.textContent = `Waiting in queue... (${buildTypeLabel})`;
       progressBar.style.width = '25%';
       break;
     case 'processing':
-      statusText.textContent = 'Build in progress...';
+      statusText.textContent = `Building ${buildTypeLabel}...`;
       progressBar.style.width = '65%';
       break;
     case 'completed':
@@ -242,6 +259,48 @@ async function handleCompletedJob(job) {
     }
 
     downloadLink.href = result.downloadUrl;
+    
+    // Update download link text and add instructions based on build type
+    const buildType = job.buildType || 'exe';
+    if (buildType === 'webgl') {
+      downloadLink.textContent = 'Download Web Build (ZIP)';
+      downloadLink.download = 'MyGame-WebGL.zip';
+      
+      // Add WebGL hosting instructions
+      const instructionsDiv = document.createElement('div');
+      instructionsDiv.className = 'webgl-instructions';
+      instructionsDiv.style.marginTop = '20px';
+      instructionsDiv.style.padding = '15px';
+      instructionsDiv.style.background = '#e3f2fd';
+      instructionsDiv.style.borderRadius = '8px';
+      instructionsDiv.style.fontSize = '0.9em';
+      instructionsDiv.style.color = '#1565c0';
+      instructionsDiv.innerHTML = `
+        <strong>📦 WebGL Hosting Instructions:</strong><br>
+        1. Extract the ZIP file after downloading<br>
+        2. Upload all files to your web server<br>
+        3. Access the game via the index.html file<br>
+        4. Make sure your server supports serving .wasm and .data files
+      `;
+      
+      // Remove existing instructions if any
+      const existingInstructions = downloadSection.querySelector('.webgl-instructions');
+      if (existingInstructions) {
+        existingInstructions.remove();
+      }
+      
+      downloadSection.appendChild(instructionsDiv);
+    } else {
+      downloadLink.textContent = 'Download Game (EXE)';
+      downloadLink.download = 'MyGame.exe';
+      
+      // Remove WebGL instructions if present
+      const existingInstructions = downloadSection.querySelector('.webgl-instructions');
+      if (existingInstructions) {
+        existingInstructions.remove();
+      }
+    }
+    
     downloadSection.style.display = 'block';
     buildSection.scrollIntoView({ behavior: 'smooth' });
     statusText.textContent = 'Ready to download';

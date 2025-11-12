@@ -3,6 +3,7 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs-extra');
 const { exec } = require('child_process');
+const archiver = require('archiver');
 const { GetObjectCommand, PutObjectCommand } = require('@aws-sdk/client-s3');
 const config = require('../config');
 const { s3Client } = require('../aws/clients');
@@ -48,6 +49,28 @@ function execAsync(command, options = {}) {
   });
 }
 
+async function zipDirectory(sourceDir, outputPath) {
+  return new Promise((resolve, reject) => {
+    const output = fs.createWriteStream(outputPath);
+    const archive = archiver('zip', {
+      zlib: { level: 9 } // Maximum compression
+    });
+
+    output.on('close', () => {
+      console.log(`[Worker] Archive created: ${archive.pointer()} total bytes`);
+      resolve();
+    });
+
+    archive.on('error', (err) => {
+      reject(err);
+    });
+
+    archive.pipe(output);
+    archive.directory(sourceDir, false);
+    archive.finalize();
+  });
+}
+
 async function processJobMessage(message) {
   let jobId;
   try {
@@ -66,13 +89,14 @@ async function processJobMessage(message) {
     await markJobStatus(jobId, 'processing', { startedAt: new Date().toISOString() });
 
     const assetKey = job.assetKey;
+    const buildType = job.buildType || 'exe'; // Default to 'exe' for backward compatibility
     const assetExt = path.extname(assetKey) || '.fbx';
     const tempAssetPath = path.join(TEMP_DIR, `${jobId}${assetExt}`);
 
     await downloadS3Object(config.UPLOADS_BUCKET, assetKey, tempAssetPath);
 
     let buildKey;
-    if (config.PREBUILT_EXECUTABLE) {
+    if (config.PREBUILT_EXECUTABLE && buildType === 'exe') {
       const prebuiltPath = path.resolve(config.PREBUILT_EXECUTABLE);
       if (!(await fs.pathExists(prebuiltPath))) {
         throw new Error(`Prebuilt executable not found at ${prebuiltPath}`);
@@ -88,7 +112,8 @@ async function processJobMessage(message) {
         buildKey,
         completedAt: new Date().toISOString(),
         buildStrategy: 'prebuilt',
-        prebuiltSource: prebuiltPath
+        prebuiltSource: prebuiltPath,
+        buildType: 'exe'
       });
       await fs.remove(tempOutputPath).catch(() => {});
     } else {
@@ -114,25 +139,72 @@ async function processJobMessage(message) {
       }
 
       const unityLogPath = path.join(config.UNITY_PROJECT_PATH, 'BuildWorker.log');
-      const buildOutputPath = path.join(config.UNITY_PROJECT_PATH, config.BUILD_OUTPUT_PATH);
 
-      await execAsync(
-        `"${config.UNITY_EDITOR_PATH}" -quit -batchmode -projectPath "${config.UNITY_PROJECT_PATH}" -executeMethod ${config.BUILD_METHOD} -logFile "${unityLogPath}"`,
-        { env: process.env }
-      );
+      if (buildType === 'webgl') {
+        // WebGL build process
+        const webglOutputPath = path.join(config.UNITY_PROJECT_PATH, config.WEBGL_BUILD_OUTPUT_PATH);
+        
+        console.log(`[Worker] Starting WebGL build for job ${jobId}`);
+        await execAsync(
+          `"${config.UNITY_EDITOR_PATH}" -quit -batchmode -projectPath "${config.UNITY_PROJECT_PATH}" -executeMethod ${config.WEBGL_BUILD_METHOD} -logFile "${unityLogPath}"`,
+          { env: process.env }
+        );
 
-      if (!(await fs.pathExists(buildOutputPath))) {
-        throw new Error('Unity build completed but output file was not found');
+        if (!(await fs.pathExists(webglOutputPath))) {
+          throw new Error('Unity WebGL build completed but output folder was not found');
+        }
+
+        // Check if the WebGL folder has content
+        const webglFiles = await fs.readdir(webglOutputPath);
+        if (webglFiles.length === 0) {
+          throw new Error('Unity WebGL build folder is empty');
+        }
+
+        // Create zip file from WebGL folder
+        const zipFileName = `MyGame-WebGL-${jobId}.zip`;
+        const zipOutputPath = path.join(TEMP_DIR, zipFileName);
+        console.log(`[Worker] Creating zip archive from WebGL build...`);
+        await zipDirectory(webglOutputPath, zipOutputPath);
+
+        if (!(await fs.pathExists(zipOutputPath))) {
+          throw new Error('Failed to create zip file from WebGL build');
+        }
+
+        buildKey = `builds/${jobId}/${zipFileName}`;
+        await uploadS3Object(config.BUILDS_BUCKET, buildKey, zipOutputPath, 'application/zip');
+
+        await markJobStatus(jobId, 'completed', {
+          buildKey,
+          completedAt: new Date().toISOString(),
+          buildStrategy: 'unity-build',
+          buildType: 'webgl'
+        });
+
+        // Clean up zip file
+        await fs.remove(zipOutputPath).catch(() => {});
+      } else {
+        // EXE build process (existing logic)
+        const buildOutputPath = path.join(config.UNITY_PROJECT_PATH, config.BUILD_OUTPUT_PATH);
+
+        await execAsync(
+          `"${config.UNITY_EDITOR_PATH}" -quit -batchmode -projectPath "${config.UNITY_PROJECT_PATH}" -executeMethod ${config.BUILD_METHOD} -logFile "${unityLogPath}"`,
+          { env: process.env }
+        );
+
+        if (!(await fs.pathExists(buildOutputPath))) {
+          throw new Error('Unity build completed but output file was not found');
+        }
+
+        buildKey = `builds/${jobId}/${path.basename(buildOutputPath)}`;
+        await uploadS3Object(config.BUILDS_BUCKET, buildKey, buildOutputPath, 'application/vnd.microsoft.portable-executable');
+
+        await markJobStatus(jobId, 'completed', {
+          buildKey,
+          completedAt: new Date().toISOString(),
+          buildStrategy: 'unity-build',
+          buildType: 'exe'
+        });
       }
-
-      buildKey = `builds/${jobId}/${path.basename(buildOutputPath)}`;
-      await uploadS3Object(config.BUILDS_BUCKET, buildKey, buildOutputPath, 'application/vnd.microsoft.portable-executable');
-
-      await markJobStatus(jobId, 'completed', {
-        buildKey,
-        completedAt: new Date().toISOString(),
-        buildStrategy: 'unity-build'
-      });
     }
 
     console.log(`[Worker] Job ${jobId} completed successfully`);

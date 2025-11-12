@@ -20,6 +20,10 @@ module.exports = {
   MODEL_TARGET_BASE: process.env.MODEL_TARGET_BASE || 'Assets/Resources/Character/Character',
   BUILD_OUTPUT_PATH: process.env.BUILD_OUTPUT_PATH || 'Builds/MyGame.exe',
   BUILD_METHOD: process.env.BUILD_METHOD || 'BuildScript.BuildGame',
+  WEBGL_BUILD_OUTPUT_PATH: process.env.WEBGL_BUILD_OUTPUT_PATH || 'Builds/WebGL',
+  WEBGL_BUILD_METHOD: process.env.WEBGL_BUILD_METHOD || 'BuildScript.BuildWebGL',
+  BUILD_TYPE_EXE: 'exe',
+  BUILD_TYPE_WEBGL: 'webgl',
 
   // AWS / INFRASTRUCTURE SETTINGS
   AWS_REGION: process.env.AWS_REGION || 'us-east-1',

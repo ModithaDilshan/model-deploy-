@@ -26,13 +26,18 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { assetKey, originalFileName } = req.body || {};
+    const { assetKey, originalFileName, buildType } = req.body || {};
 
     if (!assetKey) {
       return res.status(400).json({ success: false, error: 'assetKey is required' });
     }
 
-    const job = await createJob({ assetKey, originalFileName });
+    // Validate buildType if provided
+    if (buildType && buildType !== 'exe' && buildType !== 'webgl') {
+      return res.status(400).json({ success: false, error: 'buildType must be either "exe" or "webgl"' });
+    }
+
+    const job = await createJob({ assetKey, originalFileName, buildType: buildType || 'exe' });
     res.status(201).json({ success: true, job });
   } catch (error) {
     console.error('create job error:', error);

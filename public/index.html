@@ -52,7 +52,25 @@
             <!-- Build Section -->
             <section class="build-section" id="buildSection" style="display: none;">
                 <h2>Step 2: Build Game</h2>
-                <p class="section-description">Once your model is uploaded, click the button below to start building your game.</p>
+                <p class="section-description">Choose your build type and click the button below to start building your game.</p>
+                
+                <div class="build-type-selector">
+                    <label class="build-type-option">
+                        <input type="radio" name="buildType" value="exe" id="buildTypeExe" checked>
+                        <div class="build-type-content">
+                            <strong>Windows Executable (.exe)</strong>
+                            <span class="build-type-desc">Download and run on Windows</span>
+                        </div>
+                    </label>
+                    <label class="build-type-option">
+                        <input type="radio" name="buildType" value="webgl" id="buildTypeWebGL">
+                        <div class="build-type-content">
+                            <strong>Web Export (WebGL)</strong>
+                            <span class="build-type-desc">Embed in your website</span>
+                        </div>
+                    </label>
+                </div>
+                
                 <button class="btn btn-build" id="buildBtn">Build Game</button>
                 
                 <div id="buildStatus" class="build-status" style="display: none;">

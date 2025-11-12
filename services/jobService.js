@@ -4,9 +4,14 @@ const config = require('../config');
 const { dynamoDocClient } = require('../aws/clients');
 const { enqueueJobMessage } = require('./queueService');
 
-async function createJob({ assetKey, originalFileName }) {
+async function createJob({ assetKey, originalFileName, buildType = 'exe' }) {
   if (!assetKey) {
     throw new Error('assetKey is required to create a job');
+  }
+
+  // Validate buildType
+  if (buildType !== 'exe' && buildType !== 'webgl') {
+    throw new Error('buildType must be either "exe" or "webgl"');
   }
 
   const now = new Date().toISOString();
@@ -17,6 +22,7 @@ async function createJob({ assetKey, originalFileName }) {
     status: 'queued',
     assetKey,
     originalFileName: originalFileName || null,
+    buildType: buildType || 'exe', // Default to 'exe' for backward compatibility
     createdAt: now,
     updatedAt: now
   };

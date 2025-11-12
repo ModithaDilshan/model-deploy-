@@ -281,8 +281,8 @@ async function handleCompletedJob(job) {
       instructionsDiv.style.color = '#1565c0';
       instructionsDiv.innerHTML = `
         <strong>📦 WebGL Hosting Instructions:</strong><br>
-        1. Extract the ZIP file after downloading<br>
-        2. Upload all files to your web server<br>
+        1. Extract the ${fileExt.toUpperCase()} file after downloading (use WinRAR, 7-Zip, or similar)<br>
+        2. Upload all extracted files to your web server<br>
         3. Access the game via the index.html file<br>
         4. Make sure your server supports serving .wasm and .data files
       `;

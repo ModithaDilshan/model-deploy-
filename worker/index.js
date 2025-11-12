@@ -117,12 +117,16 @@ async function processJobMessage(message) {
     const assetExt = path.extname(assetKey) || '.fbx';
     const tempAssetPath = path.join(TEMP_DIR, `${jobId}${assetExt}`);
 
+    console.log(`[Worker] Build type: ${buildType}`);
+    console.log(`[Worker] PREBUILT_WEBGL config: ${config.PREBUILT_WEBGL}`);
+
     await downloadS3Object(config.UPLOADS_BUCKET, assetKey, tempAssetPath);
 
     let buildKey;
     
     // Check for prebuilt WebGL file (temporary workaround)
     if (buildType === 'webgl' && config.PREBUILT_WEBGL) {
+      console.log(`[Worker] Prebuilt WebGL check: buildType=${buildType}, PREBUILT_WEBGL=${config.PREBUILT_WEBGL}`);
       const prebuiltPath = path.resolve(config.PREBUILT_WEBGL);
       if (!(await fs.pathExists(prebuiltPath))) {
         throw new Error(`Prebuilt WebGL file not found at ${prebuiltPath}`);
@@ -152,6 +156,7 @@ async function processJobMessage(message) {
         buildType: 'webgl'
       });
       await fs.remove(tempOutputPath).catch(() => {});
+      return; // Exit early - prebuilt WebGL file processed
     }
     // Check for prebuilt EXE file
     else if (config.PREBUILT_EXECUTABLE && buildType === 'exe') {
@@ -174,6 +179,7 @@ async function processJobMessage(message) {
         buildType: 'exe'
       });
       await fs.remove(tempOutputPath).catch(() => {});
+      return; // Exit early - prebuilt EXE file processed
     } else {
       const targetBasePath = path.join(config.UNITY_PROJECT_PATH, config.MODEL_TARGET_BASE);
       const targetDir = path.dirname(targetBasePath);

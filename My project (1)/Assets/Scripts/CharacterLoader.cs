@@ -43,10 +43,19 @@ public class CharacterLoader : MonoBehaviour
 
     private void SpawnFallback()
     {
+        // Create a visible fallback object (capsule)
         spawnedCharacter = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        spawnedCharacter.name = "Character_Fallback";
         spawnedCharacter.transform.SetParent(transform, false);
         spawnedCharacter.transform.localPosition = spawnPosition;
         spawnedCharacter.transform.localRotation = Quaternion.Euler(spawnRotation);
         spawnedCharacter.transform.localScale = spawnScale;
+        
+        // Add a simple colored material to make it more visible
+        Material mat = new Material(Shader.Find("Standard"));
+        mat.color = new Color(0.8f, 0.2f, 0.2f); // Red color
+        spawnedCharacter.GetComponent<Renderer>().material = mat;
+        
+        Debug.Log("CharacterLoader: Spawned fallback capsule character");
     }
 }

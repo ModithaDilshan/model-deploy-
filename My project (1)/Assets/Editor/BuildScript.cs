@@ -33,6 +33,14 @@ public static class BuildScript
         if (target == BuildTarget.WebGL)
         {
             outputPath = Path.Combine(buildDirectory, "WebGL");
+            
+            // Verify WebGL is available
+            if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.WebGL, BuildTarget.WebGL))
+            {
+                throw new System.Exception("WebGL build target is not supported. Please install WebGL Build Support module in Unity Hub.");
+            }
+            
+            Debug.Log("WebGL build target is supported. Proceeding with build...");
         }
         else
         {
@@ -44,7 +52,22 @@ public static class BuildScript
             Directory.CreateDirectory(buildDirectory);
         }
 
-        Debug.Log($"Starting build to {outputPath}");
+        // Clean previous build if it exists
+        if (target == BuildTarget.WebGL && Directory.Exists(outputPath))
+        {
+            try
+            {
+                Directory.Delete(outputPath, true);
+                Debug.Log($"Cleaned previous WebGL build at {outputPath}");
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning($"Could not clean previous build: {e.Message}");
+            }
+        }
+
+        Debug.Log($"Starting {target} build to {outputPath}");
+        Debug.Log($"Scenes to build: {string.Join(", ", ScenesToBuild)}");
 
         BuildPlayerOptions options = new BuildPlayerOptions
         {
@@ -55,12 +78,24 @@ public static class BuildScript
         };
 
         BuildReport report = BuildPipeline.BuildPlayer(options);
+        
         if (report.summary.result != BuildResult.Succeeded)
         {
-            throw new System.Exception($"Build failed: {report.summary.result}");
+            string errorMsg = $"Build failed: {report.summary.result}";
+            if (report.summary.totalErrors > 0)
+            {
+                errorMsg += $"\nTotal Errors: {report.summary.totalErrors}";
+            }
+            if (report.summary.totalWarnings > 0)
+            {
+                errorMsg += $"\nTotal Warnings: {report.summary.totalWarnings}";
+            }
+            throw new System.Exception(errorMsg);
         }
 
         Debug.Log($"Build completed successfully: {outputPath}");
+        Debug.Log($"Build size: {report.summary.totalSize} bytes");
+        Debug.Log($"Build time: {report.summary.totalTime.TotalSeconds} seconds");
     }
 
     public static void BuildWebGL()

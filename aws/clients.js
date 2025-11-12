@@ -5,7 +5,15 @@ const { DynamoDBDocumentClient } = require('@aws-sdk/lib-dynamodb');
 const config = require('../config');
 
 const baseAwsConfig = {
-  region: config.AWS_REGION
+  region: config.AWS_REGION,
+  requestHandler: {
+    requestTimeout: 300000, // 5 minutes for large file uploads/downloads
+    httpsAgent: {
+      keepAlive: true,
+      maxSockets: 50
+    }
+  },
+  maxAttempts: 3 // Retry up to 3 times
 };
 
 const s3Client = new S3Client(baseAwsConfig);

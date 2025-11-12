@@ -27,13 +27,37 @@ async function downloadS3Object(bucket, key, destination) {
 }
 
 async function uploadS3Object(bucket, key, filePath, contentType = 'application/octet-stream') {
-  const fileStream = fs.createReadStream(filePath);
-  await s3Client.send(new PutObjectCommand({
-    Bucket: bucket,
-    Key: key,
-    Body: fileStream,
-    ContentType: contentType
-  }));
+  const fileStats = await fs.stat(filePath);
+  const fileSize = fileStats.size;
+  
+  // For files larger than 100MB, use multipart upload
+  if (fileSize > 100 * 1024 * 1024) {
+    console.log(`[Worker] Using multipart upload for large file (${(fileSize / 1024 / 1024).toFixed(2)} MB)`);
+    const { Upload } = require('@aws-sdk/lib-storage');
+    const upload = new Upload({
+      client: s3Client,
+      params: {
+        Bucket: bucket,
+        Key: key,
+        Body: fs.createReadStream(filePath),
+        ContentType: contentType
+      },
+      partSize: 10 * 1024 * 1024, // 10MB parts
+      leavePartsOnError: false
+    });
+    
+    await upload.done();
+    console.log(`[Worker] Multipart upload completed for ${key}`);
+  } else {
+    // For smaller files, use regular upload
+    const fileStream = fs.createReadStream(filePath);
+    await s3Client.send(new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: fileStream,
+      ContentType: contentType
+    }));
+  }
 }
 
 function execAsync(command, options = {}) {

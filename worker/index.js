@@ -191,6 +191,26 @@ async function processJobMessage(message) {
           // Wait a moment for any previous Unity processes to finish
           await new Promise(resolve => setTimeout(resolve, 1000));
           
+          // First, try to compile scripts by opening Unity without executing method
+          // This ensures scripts are compiled before we try to execute the build method
+          console.log(`[Worker] Compiling Unity scripts first...`);
+          try {
+            await execAsync(
+              `"${unityEditorPath}" -quit -batchmode -projectPath "${unityProjectPath}" -logFile "${normalizedLogPath}.compile"`,
+              { 
+                env: process.env, 
+                maxBuffer: 1024 * 1024 * 50,
+                timeout: 120000 // 2 minutes for compilation
+              }
+            );
+            // Wait a moment
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          } catch (compileError) {
+            console.log(`[Worker] Script compilation check completed (may have errors, continuing anyway)`);
+          }
+          
+          // Now execute the build method
+          console.log(`[Worker] Executing build method: ${config.WEBGL_BUILD_METHOD}`);
           const result = await execAsync(
             `"${unityEditorPath}" -quit -batchmode -projectPath "${unityProjectPath}" -executeMethod ${config.WEBGL_BUILD_METHOD} -logFile "${normalizedLogPath}"`,
             { 
@@ -201,7 +221,23 @@ async function processJobMessage(message) {
           );
           
           // Wait a moment for Unity to finish writing the log file
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          
+          // Check for test files that indicate method execution
+          const testFile = path.join(config.UNITY_PROJECT_PATH, '..', 'build_webgl_started.txt');
+          const errorFile = path.join(config.UNITY_PROJECT_PATH, '..', 'build_webgl_error.txt');
+          
+          if (await fs.pathExists(errorFile)) {
+            const errorContent = await fs.readFile(errorFile, 'utf-8');
+            throw new Error(`Build method executed but failed:\n${errorContent}`);
+          }
+          
+          if (await fs.pathExists(testFile)) {
+            const testContent = await fs.readFile(testFile, 'utf-8');
+            console.log(`[Worker] Build method was called: ${testContent}`);
+          } else {
+            console.log(`[Worker] Warning: build_webgl_started.txt not found - method may not have executed`);
+          }
           
           // Check if Unity log file exists and read it for errors
           if (await fs.pathExists(normalizedLogPath)) {

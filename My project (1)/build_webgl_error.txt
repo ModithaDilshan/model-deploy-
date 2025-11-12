@@ -1,0 +1,5 @@
+Error: Build failed: Failed
+Total Errors: 1
+
+Stack:   at BuildScript.BuildGame (UnityEditor.BuildTarget target) [0x001b0] in D:\New folder (40)\My project (1)\Assets\Editor\BuildScript.cs:103 
+  at BuildScript.BuildWebGL () [0x000ba] in D:\New folder (40)\My project (1)\Assets\Editor\BuildScript.cs:140 

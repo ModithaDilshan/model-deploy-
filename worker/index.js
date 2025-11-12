@@ -229,7 +229,25 @@ async function processJobMessage(message) {
           
           if (await fs.pathExists(errorFile)) {
             const errorContent = await fs.readFile(errorFile, 'utf-8');
-            throw new Error(`Build method executed but failed:\n${errorContent}`);
+            console.log(`[Worker] Build error file found. Content:\n${errorContent}`);
+            
+            // Also check the Unity log for more details
+            let fullError = `Build method executed but failed:\n${errorContent}`;
+            if (await fs.pathExists(normalizedLogPath)) {
+              const logContent = await fs.readFile(normalizedLogPath, 'utf-8');
+              // Look for detailed error messages in the log
+              const errorLines = logContent.split('\n').filter(line => 
+                line.toLowerCase().includes('error') || 
+                line.toLowerCase().includes('exception') ||
+                line.toLowerCase().includes('failed') ||
+                line.toLowerCase().includes('build report')
+              );
+              if (errorLines.length > 0) {
+                fullError += '\n\nUnity Log Errors:\n' + errorLines.slice(-50).join('\n');
+              }
+            }
+            
+            throw new Error(fullError);
           }
           
           if (await fs.pathExists(testFile)) {

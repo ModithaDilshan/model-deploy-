@@ -100,6 +100,40 @@ public static class BuildScript
             {
                 errorMsg += $"\nTotal Warnings: {report.summary.totalWarnings}";
             }
+            
+            // Get detailed error messages from the build report
+            System.Text.StringBuilder detailedErrors = new System.Text.StringBuilder();
+            detailedErrors.AppendLine("\n=== Build Errors ===");
+            
+            foreach (var step in report.steps)
+            {
+                foreach (var message in step.messages)
+                {
+                    if (message.type == UnityEditor.Build.Reporting.LogType.Error || 
+                        message.type == UnityEditor.Build.Reporting.LogType.Exception)
+                    {
+                        detailedErrors.AppendLine($"[{message.type}] {message.content}");
+                    }
+                }
+            }
+            
+            errorMsg += detailedErrors.ToString();
+            
+            // Also log all steps for debugging
+            Debug.LogError("=== Build Report Steps ===");
+            foreach (var step in report.steps)
+            {
+                Debug.LogError($"Step: {step.name}, Duration: {step.duration.TotalSeconds}s");
+                foreach (var message in step.messages)
+                {
+                    if (message.type == UnityEditor.Build.Reporting.LogType.Error || 
+                        message.type == UnityEditor.Build.Reporting.LogType.Exception)
+                    {
+                        Debug.LogError($"[{message.type}] {message.content}");
+                    }
+                }
+            }
+            
             throw new System.Exception(errorMsg);
         }
 

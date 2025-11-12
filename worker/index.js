@@ -144,9 +144,26 @@ async function processJobMessage(message) {
         // WebGL build process
         const webglOutputPath = path.join(config.UNITY_PROJECT_PATH, config.WEBGL_BUILD_OUTPUT_PATH);
         
+        // Normalize paths for Windows (convert forward slashes to backslashes)
+        const unityEditorPath = path.normalize(config.UNITY_EDITOR_PATH);
+        const unityProjectPath = path.normalize(config.UNITY_PROJECT_PATH);
+        const normalizedLogPath = path.normalize(unityLogPath);
+        
+        // Verify Unity executable exists
+        if (!(await fs.pathExists(unityEditorPath))) {
+          throw new Error(`Unity executable not found at: ${unityEditorPath}. Please check UNITY_EDITOR_PATH in your environment variables.`);
+        }
+        
+        // Verify project path exists
+        if (!(await fs.pathExists(unityProjectPath))) {
+          throw new Error(`Unity project path not found at: ${unityProjectPath}. Please check UNITY_PROJECT_PATH in your environment variables.`);
+        }
+        
         console.log(`[Worker] Starting WebGL build for job ${jobId}`);
+        console.log(`[Worker] Unity Editor: ${unityEditorPath}`);
+        console.log(`[Worker] Project Path: ${unityProjectPath}`);
         await execAsync(
-          `"${config.UNITY_EDITOR_PATH}" -quit -batchmode -projectPath "${config.UNITY_PROJECT_PATH}" -executeMethod ${config.WEBGL_BUILD_METHOD} -logFile "${unityLogPath}"`,
+          `"${unityEditorPath}" -quit -batchmode -projectPath "${unityProjectPath}" -executeMethod ${config.WEBGL_BUILD_METHOD} -logFile "${normalizedLogPath}"`,
           { env: process.env }
         );
 
@@ -186,8 +203,13 @@ async function processJobMessage(message) {
         // EXE build process (existing logic)
         const buildOutputPath = path.join(config.UNITY_PROJECT_PATH, config.BUILD_OUTPUT_PATH);
 
+        // Normalize paths for Windows (convert forward slashes to backslashes)
+        const unityEditorPath = path.normalize(config.UNITY_EDITOR_PATH);
+        const unityProjectPath = path.normalize(config.UNITY_PROJECT_PATH);
+        const normalizedLogPath = path.normalize(unityLogPath);
+
         await execAsync(
-          `"${config.UNITY_EDITOR_PATH}" -quit -batchmode -projectPath "${config.UNITY_PROJECT_PATH}" -executeMethod ${config.BUILD_METHOD} -logFile "${unityLogPath}"`,
+          `"${unityEditorPath}" -quit -batchmode -projectPath "${unityProjectPath}" -executeMethod ${config.BUILD_METHOD} -logFile "${normalizedLogPath}"`,
           { env: process.env }
         );
 

@@ -263,8 +263,12 @@ async function handleCompletedJob(job) {
     // Update download link text and add instructions based on build type
     const buildType = job.buildType || 'exe';
     if (buildType === 'webgl') {
-      downloadLink.textContent = 'Download Web Build (ZIP)';
-      downloadLink.download = 'MyGame-WebGL.zip';
+      // Determine file extension from buildKey or default to .zip
+      const buildKey = job.buildKey || '';
+      const fileExt = buildKey.toLowerCase().endsWith('.rar') ? '.rar' : 
+                     buildKey.toLowerCase().endsWith('.zip') ? '.zip' : '.zip';
+      downloadLink.textContent = `Download Web Build (${fileExt.toUpperCase()})`;
+      downloadLink.download = `MyGame-WebGL${fileExt}`;
       
       // Add WebGL hosting instructions
       const instructionsDiv = document.createElement('div');

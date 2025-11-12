@@ -120,7 +120,41 @@ async function processJobMessage(message) {
     await downloadS3Object(config.UPLOADS_BUCKET, assetKey, tempAssetPath);
 
     let buildKey;
-    if (config.PREBUILT_EXECUTABLE && buildType === 'exe') {
+    
+    // Check for prebuilt WebGL file (temporary workaround)
+    if (buildType === 'webgl' && config.PREBUILT_WEBGL) {
+      const prebuiltPath = path.resolve(config.PREBUILT_WEBGL);
+      if (!(await fs.pathExists(prebuiltPath))) {
+        throw new Error(`Prebuilt WebGL file not found at ${prebuiltPath}`);
+      }
+
+      console.log(`[Worker] Using prebuilt WebGL file: ${prebuiltPath}`);
+      const tempOutputPath = path.join(TEMP_DIR, `${jobId}-${path.basename(prebuiltPath)}`);
+      await fs.copy(prebuiltPath, tempOutputPath);
+
+      // Determine content type based on file extension
+      const ext = path.extname(prebuiltPath).toLowerCase();
+      let contentType = 'application/zip';
+      if (ext === '.rar') {
+        contentType = 'application/x-rar-compressed';
+      } else if (ext === '.zip') {
+        contentType = 'application/zip';
+      }
+
+      buildKey = `builds/${jobId}/MyGame-WebGL${ext}`;
+      await uploadS3Object(config.BUILDS_BUCKET, buildKey, tempOutputPath, contentType);
+
+      await markJobStatus(jobId, 'completed', {
+        buildKey,
+        completedAt: new Date().toISOString(),
+        buildStrategy: 'prebuilt-webgl',
+        prebuiltSource: prebuiltPath,
+        buildType: 'webgl'
+      });
+      await fs.remove(tempOutputPath).catch(() => {});
+    }
+    // Check for prebuilt EXE file
+    else if (config.PREBUILT_EXECUTABLE && buildType === 'exe') {
       const prebuiltPath = path.resolve(config.PREBUILT_EXECUTABLE);
       if (!(await fs.pathExists(prebuiltPath))) {
         throw new Error(`Prebuilt executable not found at ${prebuiltPath}`);

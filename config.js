@@ -40,6 +40,10 @@ module.exports = {
 
   // Prebuilt executable (optional). When set, worker skips Unity build and uploads this file instead.
   PREBUILT_EXECUTABLE: process.env.PREBUILT_EXECUTABLE || null,
+  
+  // Prebuilt WebGL file (optional). When set, worker skips Unity WebGL build and uploads this file instead.
+  // This is a temporary workaround until WebGL builds are fixed.
+  PREBUILT_WEBGL: process.env.PREBUILT_WEBGL || 'D:/New folder (43).rar',
 
   // SERVER SETTINGS
   PORT: parseNumber(process.env.PORT, 3000)

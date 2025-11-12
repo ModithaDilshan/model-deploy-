@@ -186,10 +186,50 @@ async function processJobMessage(message) {
         console.log(`[Worker] Starting WebGL build for job ${jobId}`);
         console.log(`[Worker] Unity Editor: ${unityEditorPath}`);
         console.log(`[Worker] Project Path: ${unityProjectPath}`);
-        await execAsync(
-          `"${unityEditorPath}" -quit -batchmode -projectPath "${unityProjectPath}" -executeMethod ${config.WEBGL_BUILD_METHOD} -logFile "${normalizedLogPath}"`,
-          { env: process.env }
-        );
+        
+        try {
+          const result = await execAsync(
+            `"${unityEditorPath}" -quit -batchmode -projectPath "${unityProjectPath}" -executeMethod ${config.WEBGL_BUILD_METHOD} -logFile "${normalizedLogPath}"`,
+            { env: process.env, maxBuffer: 1024 * 1024 * 100 } // 100MB buffer for Unity output
+          );
+          
+          // Check if Unity log file exists and read it for errors
+          if (await fs.pathExists(normalizedLogPath)) {
+            const logContent = await fs.readFile(normalizedLogPath, 'utf-8');
+            if (logContent.includes('error') || logContent.includes('Error') || logContent.includes('Exception')) {
+              console.log(`[Worker] Unity log contains errors. Last 50 lines:`);
+              const logLines = logContent.split('\n');
+              console.log(logLines.slice(-50).join('\n'));
+            }
+          }
+        } catch (error) {
+          // Read Unity log for detailed error information
+          let errorDetails = error.message;
+          if (await fs.pathExists(normalizedLogPath)) {
+            const logContent = await fs.readFile(normalizedLogPath, 'utf-8');
+            const errorLines = logContent.split('\n').filter(line => 
+              line.toLowerCase().includes('error') || 
+              line.toLowerCase().includes('exception') ||
+              line.toLowerCase().includes('failed') ||
+              line.toLowerCase().includes('webgl')
+            );
+            if (errorLines.length > 0) {
+              errorDetails += '\nUnity Log Errors:\n' + errorLines.join('\n');
+            } else {
+              // Show last 30 lines if no specific errors found
+              const logLines = logContent.split('\n');
+              errorDetails += '\nUnity Log (last 30 lines):\n' + logLines.slice(-30).join('\n');
+            }
+          }
+          
+          // Check for common WebGL issues
+          if (errorDetails.includes('WebGL') || errorDetails.includes('webgl')) {
+            errorDetails += '\n\nPossible issue: WebGL Build Support module may not be installed for Unity 6000.2.10f1.';
+            errorDetails += '\nPlease check Unity Hub -> Installs -> Add Modules -> WebGL Build Support';
+          }
+          
+          throw new Error(errorDetails);
+        }
 
         if (!(await fs.pathExists(webglOutputPath))) {
           throw new Error('Unity WebGL build completed but output folder was not found');

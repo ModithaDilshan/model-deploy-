@@ -100,7 +100,17 @@ public static class BuildScript
 
     public static void BuildWebGL()
     {
-        BuildGame(BuildTarget.WebGL);
+        Debug.Log("BuildScript.BuildWebGL called");
+        try
+        {
+            BuildGame(BuildTarget.WebGL);
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"BuildWebGL failed: {e.Message}");
+            Debug.LogError($"Stack trace: {e.StackTrace}");
+            throw; // Re-throw to ensure Unity exits with error code
+        }
     }
 }
 #endif

@@ -118,93 +118,39 @@ async function processJobMessage(message) {
     const tempAssetPath = path.join(TEMP_DIR, `${jobId}${assetExt}`);
 
     console.log(`[Worker] Build type: ${buildType}`);
-    console.log(`[Worker] PREBUILT_WEBGL config: ${config.PREBUILT_WEBGL}`);
+    console.log(`[Worker] Processing job with uploaded model: ${assetKey}`);
 
+    // Download the uploaded model from S3
     await downloadS3Object(config.UPLOADS_BUCKET, assetKey, tempAssetPath);
 
-    let buildKey;
-    
-    // Check for prebuilt WebGL file (temporary workaround)
-    if (buildType === 'webgl' && config.PREBUILT_WEBGL) {
-      console.log(`[Worker] Prebuilt WebGL check: buildType=${buildType}, PREBUILT_WEBGL=${config.PREBUILT_WEBGL}`);
-      const prebuiltPath = path.resolve(config.PREBUILT_WEBGL);
-      if (!(await fs.pathExists(prebuiltPath))) {
-        throw new Error(`Prebuilt WebGL file not found at ${prebuiltPath}`);
-      }
+    // Copy uploaded model to Unity project
+    const targetBasePath = path.join(config.UNITY_PROJECT_PATH, config.MODEL_TARGET_BASE);
+    const targetDir = path.dirname(targetBasePath);
+    const targetFilePath = `${targetBasePath}${assetExt}`;
 
-      console.log(`[Worker] Using prebuilt WebGL file: ${prebuiltPath}`);
-      const tempOutputPath = path.join(TEMP_DIR, `${jobId}-${path.basename(prebuiltPath)}`);
-      await fs.copy(prebuiltPath, tempOutputPath);
+    console.log(`[Worker] Copying model to Unity project: ${targetFilePath}`);
+    await fs.ensureDir(targetDir);
 
-      // Determine content type based on file extension
-      const ext = path.extname(prebuiltPath).toLowerCase();
-      let contentType = 'application/zip';
-      if (ext === '.rar') {
-        contentType = 'application/x-rar-compressed';
-      } else if (ext === '.zip') {
-        contentType = 'application/zip';
-      }
-
-      buildKey = `builds/${jobId}/MyGame-WebGL${ext}`;
-      await uploadS3Object(config.BUILDS_BUCKET, buildKey, tempOutputPath, contentType);
-
-      await markJobStatus(jobId, 'completed', {
-        buildKey,
-        completedAt: new Date().toISOString(),
-        buildStrategy: 'prebuilt-webgl',
-        prebuiltSource: prebuiltPath,
-        buildType: 'webgl'
-      });
-      await fs.remove(tempOutputPath).catch(() => {});
-      return; // Exit early - prebuilt WebGL file processed
+    if (await fs.pathExists(targetFilePath)) {
+      await fs.copy(targetFilePath, `${targetFilePath}.backup`);
     }
-    // Check for prebuilt EXE file
-    else if (config.PREBUILT_EXECUTABLE && buildType === 'exe') {
-      const prebuiltPath = path.resolve(config.PREBUILT_EXECUTABLE);
-      if (!(await fs.pathExists(prebuiltPath))) {
-        throw new Error(`Prebuilt executable not found at ${prebuiltPath}`);
-      }
 
-      const tempOutputPath = path.join(TEMP_DIR, `${jobId}-${path.basename(prebuiltPath)}`);
-      await fs.copy(prebuiltPath, tempOutputPath);
+    await fs.copy(tempAssetPath, targetFilePath);
 
-      buildKey = `builds/${jobId}/${path.basename(prebuiltPath)}`;
-      await uploadS3Object(config.BUILDS_BUCKET, buildKey, tempOutputPath, 'application/vnd.microsoft.portable-executable');
+    // Clean up old model files with the same base name
+    const siblingFiles = await fs.readdir(targetDir);
+    const configuredBaseName = path.basename(targetBasePath);
+    for (const name of siblingFiles) {
+      if (!name.startsWith(configuredBaseName)) continue;
+      if (name === path.basename(targetFilePath)) continue;
+      const filePath = path.join(targetDir, name);
+      await fs.remove(filePath).catch(() => {});
+    }
 
-      await markJobStatus(jobId, 'completed', {
-        buildKey,
-        completedAt: new Date().toISOString(),
-        buildStrategy: 'prebuilt',
-        prebuiltSource: prebuiltPath,
-        buildType: 'exe'
-      });
-      await fs.remove(tempOutputPath).catch(() => {});
-      return; // Exit early - prebuilt EXE file processed
-    } else {
-      const targetBasePath = path.join(config.UNITY_PROJECT_PATH, config.MODEL_TARGET_BASE);
-      const targetDir = path.dirname(targetBasePath);
-      const targetFilePath = `${targetBasePath}${assetExt}`;
+    const unityLogPath = path.join(config.UNITY_PROJECT_PATH, 'BuildWorker.log');
+    let buildKey;
 
-      await fs.ensureDir(targetDir);
-
-      if (await fs.pathExists(targetFilePath)) {
-        await fs.copy(targetFilePath, `${targetFilePath}.backup`);
-      }
-
-      await fs.copy(tempAssetPath, targetFilePath);
-
-      const siblingFiles = await fs.readdir(targetDir);
-      const configuredBaseName = path.basename(targetBasePath);
-      for (const name of siblingFiles) {
-        if (!name.startsWith(configuredBaseName)) continue;
-        if (name === path.basename(targetFilePath)) continue;
-        const filePath = path.join(targetDir, name);
-        await fs.remove(filePath).catch(() => {});
-      }
-
-      const unityLogPath = path.join(config.UNITY_PROJECT_PATH, 'BuildWorker.log');
-
-      if (buildType === 'webgl') {
+    if (buildType === 'webgl') {
         // WebGL build process
         const webglOutputPath = path.join(config.UNITY_PROJECT_PATH, config.WEBGL_BUILD_OUTPUT_PATH);
         
@@ -451,8 +397,10 @@ async function processJobMessage(message) {
           buildStrategy: 'unity-build',
           buildType: 'exe'
         });
-      }
     }
+
+    // Clean up temporary asset file
+    await fs.remove(tempAssetPath).catch(() => {});
 
     console.log(`[Worker] Job ${jobId} completed successfully`);
   } catch (error) {

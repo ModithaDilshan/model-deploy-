@@ -263,12 +263,8 @@ async function handleCompletedJob(job) {
     // Update download link text and add instructions based on build type
     const buildType = job.buildType || 'exe';
     if (buildType === 'webgl') {
-      // Determine file extension from buildKey or default to .zip
-      const buildKey = job.buildKey || '';
-      const fileExt = buildKey.toLowerCase().endsWith('.rar') ? '.rar' : 
-                     buildKey.toLowerCase().endsWith('.zip') ? '.zip' : '.zip';
-      downloadLink.textContent = `Download Web Build (${fileExt.toUpperCase()})`;
-      downloadLink.download = `MyGame-WebGL${fileExt}`;
+      downloadLink.textContent = 'Download Web Build (ZIP)';
+      downloadLink.download = 'MyGame-WebGL.zip';
       
       // Add WebGL hosting instructions
       const instructionsDiv = document.createElement('div');
@@ -281,7 +277,7 @@ async function handleCompletedJob(job) {
       instructionsDiv.style.color = '#1565c0';
       instructionsDiv.innerHTML = `
         <strong>📦 WebGL Hosting Instructions:</strong><br>
-        1. Extract the ${fileExt.toUpperCase()} file after downloading (use WinRAR, 7-Zip, or similar)<br>
+        1. Extract the ZIP file after downloading<br>
         2. Upload all extracted files to your web server<br>
         3. Access the game via the index.html file<br>
         4. Make sure your server supports serving .wasm and .data files

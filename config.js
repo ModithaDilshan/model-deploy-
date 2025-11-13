@@ -38,13 +38,6 @@ module.exports = {
   WORKER_POLL_INTERVAL: parseNumber(process.env.WORKER_POLL_INTERVAL, 5000), // ms
   WORKER_MAX_CONCURRENT_JOBS: parseNumber(process.env.WORKER_MAX_CONCURRENT_JOBS, 1),
 
-  // Prebuilt executable (optional). When set, worker skips Unity build and uploads this file instead.
-  PREBUILT_EXECUTABLE: process.env.PREBUILT_EXECUTABLE || null,
-  
-  // Prebuilt WebGL file (optional). When set, worker skips Unity WebGL build and uploads this file instead.
-  // This is a temporary workaround until WebGL builds are fixed.
-  PREBUILT_WEBGL: process.env.PREBUILT_WEBGL || 'D:/New folder (43).rar',
-
   // SERVER SETTINGS
   PORT: parseNumber(process.env.PORT, 3000)
 };

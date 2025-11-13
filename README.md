@@ -139,7 +139,7 @@ Use `sample_models/SampleCharacter.obj` to test the pipeline locally.
 ### 3. Provision the build worker server
 
 1. Provision a Windows machine (EC2, bare metal, etc.) with sufficient CPU/RAM.
-2. Install Unity (matching the version used to author the project) **only if you plan to run fresh builds**. If you use a prebuilt executable, Unity is optional.
+2. Install Unity (matching the version used to author the project).
 3. Install Node.js.
 4. Pull this repository onto the server and run `npm install`.
 5. Copy the Unity project (`My project (1)`) to `UNITY_PROJECT_PATH` **if** you’ll build on demand.

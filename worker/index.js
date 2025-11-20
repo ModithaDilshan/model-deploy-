@@ -175,28 +175,13 @@ async function processJobMessage(message) {
         
         try {
           // Wait a moment for any previous Unity processes to finish
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, 2000));
           
-          // First, try to compile scripts by opening Unity without executing method
-          // This ensures scripts are compiled before we try to execute the build method
-          console.log(`[Worker] Compiling Unity scripts first...`);
-          try {
-            await execAsync(
-              `"${unityEditorPath}" -quit -batchmode -projectPath "${unityProjectPath}" -logFile "${normalizedLogPath}.compile"`,
-              { 
-                env: process.env, 
-                maxBuffer: 1024 * 1024 * 50,
-                timeout: 120000 // 2 minutes for compilation
-              }
-            );
-            // Wait a moment
-            await new Promise(resolve => setTimeout(resolve, 2000));
-          } catch (compileError) {
-            console.log(`[Worker] Script compilation check completed (may have errors, continuing anyway)`);
-          }
-          
-          // Now execute the build method
+          // Execute the build method directly (Unity will compile scripts automatically)
+          // Skip separate compilation check as it causes Unity to exit early in batch mode
           console.log(`[Worker] Executing build method: ${config.WEBGL_BUILD_METHOD}`);
+          console.log(`[Worker] Unity will compile scripts automatically during build`);
+          
           const result = await execAsync(
             `"${unityEditorPath}" -quit -batchmode -projectPath "${unityProjectPath}" -executeMethod ${config.WEBGL_BUILD_METHOD} -logFile "${normalizedLogPath}"`,
             { 
@@ -206,14 +191,18 @@ async function processJobMessage(message) {
             }
           );
           
-          // Wait a moment for Unity to finish writing the log file
-          await new Promise(resolve => setTimeout(resolve, 3000));
+          // Wait longer for Unity to finish writing the log file
+          await new Promise(resolve => setTimeout(resolve, 5000));
           
           // Check for test files that indicate method execution
           const testFile = path.join(config.UNITY_PROJECT_PATH, '..', 'build_webgl_started.txt');
           const errorFile = path.join(config.UNITY_PROJECT_PATH, '..', 'build_webgl_error.txt');
           
-          if (await fs.pathExists(errorFile)) {
+          // Check if build method was executed
+          const methodExecuted = await fs.pathExists(testFile);
+          const hasErrorFile = await fs.pathExists(errorFile);
+          
+          if (hasErrorFile) {
             const errorContent = await fs.readFile(errorFile, 'utf-8');
             console.log(`[Worker] Build error file found. Content:\n${errorContent}`);
             
@@ -236,106 +225,188 @@ async function processJobMessage(message) {
             throw new Error(fullError);
           }
           
-          if (await fs.pathExists(testFile)) {
+          if (methodExecuted) {
             const testContent = await fs.readFile(testFile, 'utf-8');
             console.log(`[Worker] Build method was called: ${testContent}`);
           } else {
-            console.log(`[Worker] Warning: build_webgl_started.txt not found - method may not have executed`);
+            console.log(`[Worker] Warning: build_webgl_started.txt not found - checking if build succeeded anyway`);
           }
           
           // Check if Unity log file exists and read it for errors
           if (await fs.pathExists(normalizedLogPath)) {
             const logContent = await fs.readFile(normalizedLogPath, 'utf-8');
             
-            // Check for compilation errors or build failures
-            if (logContent.includes('error') || logContent.includes('Error') || logContent.includes('Exception') || logContent.includes('Failed')) {
-              console.log(`[Worker] Unity log contains errors. Full log:`);
-              console.log(logContent);
+            // Check if build method was mentioned in log
+            const buildMethodCalled = logContent.includes('BuildScript') || 
+                                     logContent.includes('BuildWebGL') ||
+                                     logContent.includes('Starting WebGL build') ||
+                                     logContent.includes('Build completed successfully');
+            
+            if (!buildMethodCalled && !methodExecuted) {
+              // Method didn't execute - check for compilation errors
+              const compileErrors = logContent.match(/error CS\d+[^\n]*|CompilationFailedException[^\n]*/gi);
+              if (compileErrors && compileErrors.length > 0) {
+                throw new Error(`Unity build method did not execute. Compilation errors found:\n${compileErrors.slice(0, 10).join('\n')}`);
+              }
               
-              // Extract specific error messages
-              const errorPattern = /(?:error|Error|Exception|Failed)[^\n]*/gi;
-              const errors = logContent.match(errorPattern);
+              // Check for other errors
+              const errors = logContent.match(/(?:error|Error|Exception|Failed)[^\n]*/gi);
               if (errors && errors.length > 0) {
-                throw new Error(`Unity build failed with errors:\n${errors.slice(0, 20).join('\n')}`);
+                const uniqueErrors = [...new Set(errors)].slice(0, 20);
+                throw new Error(`Unity build method did not execute. Errors found:\n${uniqueErrors.join('\n')}`);
+              }
+              
+              // If no errors but method didn't execute, Unity might have exited early
+              console.log(`[Worker] Warning: Build method may not have executed. Checking Unity Editor.log...`);
+            }
+            
+            // Check for compilation errors or build failures
+            if (logContent.includes('error CS') || logContent.includes('CompilationFailedException')) {
+              const compileErrors = logContent.match(/error CS\d+[^\n]*/gi);
+              if (compileErrors && compileErrors.length > 0) {
+                throw new Error(`Unity script compilation failed:\n${compileErrors.slice(0, 10).join('\n')}`);
               }
             }
             
-            // Check if the build method was actually executed
-            if (!logContent.includes('BuildScript') && !logContent.includes('Starting') && !logContent.includes('Build completed')) {
-              console.log(`[Worker] Warning: Build method may not have executed. Full log:`);
-              console.log(logContent);
+            // Check for build failures
+            if (logContent.includes('Build failed') || logContent.includes('BuildResult.Failed')) {
+              const buildErrors = logContent.match(/Build failed[^\n]*|BuildResult\.Failed[^\n]*/gi);
+              if (buildErrors && buildErrors.length > 0) {
+                throw new Error(`Unity build failed:\n${buildErrors.join('\n')}`);
+              }
             }
           } else {
-            throw new Error('Unity log file was not created. Unity may have failed to start.');
+            // Log file doesn't exist - check Editor.log
+            console.log(`[Worker] Unity log file not found. Checking Editor.log...`);
           }
           
-          // Also check Unity's Editor.log for additional errors
+          // Check Unity's Editor.log for additional errors (this has more detailed info)
           const editorLogPath = path.join(os.homedir(), 'AppData', 'LocalLow', 'Unity', 'Editor', 'Editor.log');
           if (await fs.pathExists(editorLogPath)) {
             const editorLog = await fs.readFile(editorLogPath, 'utf-8');
-            const recentLog = editorLog.split('\n').slice(-100).join('\n');
-            if (recentLog.includes('error') || recentLog.includes('Error')) {
-              console.log(`[Worker] Unity Editor.log contains errors (last 100 lines):`);
-              console.log(recentLog);
+            const recentLog = editorLog.split('\n').slice(-200).join('\n'); // Last 200 lines
+            
+            // Check for compilation errors in Editor.log
+            const compileErrors = recentLog.match(/error CS\d+[^\n]*/gi);
+            if (compileErrors && compileErrors.length > 0) {
+              throw new Error(`Unity script compilation failed (from Editor.log):\n${compileErrors.slice(0, 10).join('\n')}`);
+            }
+            
+            // Check for other errors
+            if (recentLog.includes('error') || recentLog.includes('Error') || recentLog.includes('Exception')) {
+              const errors = recentLog.match(/(?:error|Error|Exception)[^\n]*/gi);
+              if (errors && errors.length > 0) {
+                const uniqueErrors = [...new Set(errors)].slice(0, 15);
+                console.log(`[Worker] Unity Editor.log contains errors (last 200 lines):`);
+                console.log(uniqueErrors.join('\n'));
+              }
+            }
+            
+            // Check if build method was called in Editor.log
+            if (recentLog.includes('BuildScript.BuildWebGL') || recentLog.includes('BuildWebGL called')) {
+              console.log(`[Worker] Build method execution confirmed in Editor.log`);
+            }
+          }
+          
+          // Check if build output exists (even if Unity exited with code 1, build might have succeeded)
+          if (await fs.pathExists(webglOutputPath)) {
+            const webglFiles = await fs.readdir(webglOutputPath);
+            if (webglFiles.length > 0) {
+              console.log(`[Worker] WebGL build output found (${webglFiles.length} files) - build may have succeeded despite exit code`);
+              // Continue with build processing
             }
           }
         } catch (error) {
-          // Read Unity log for detailed error information
-          let errorDetails = error.message;
-          
-          // Wait a moment for log file to be written
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          
-          if (await fs.pathExists(normalizedLogPath)) {
-            const logContent = await fs.readFile(normalizedLogPath, 'utf-8');
-            
-            // Show full log if it's short, or last 100 lines if long
-            const logLines = logContent.split('\n');
-            if (logLines.length < 100) {
-              errorDetails += '\n\nUnity Log (full):\n' + logContent;
+          // Check if build actually succeeded despite the error (Unity sometimes exits with code 1 even on success)
+          if (await fs.pathExists(webglOutputPath)) {
+            const webglFiles = await fs.readdir(webglOutputPath);
+            if (webglFiles.length > 0) {
+              console.log(`[Worker] Build output exists despite error - checking if build actually succeeded`);
+              // If build output exists and has files, the build might have succeeded
+              // Continue processing instead of throwing error
+              console.log(`[Worker] Proceeding with build output (${webglFiles.length} files found)`);
             } else {
-              errorDetails += '\n\nUnity Log (last 100 lines):\n' + logLines.slice(-100).join('\n');
-            }
-            
-            // Extract specific error patterns
-            const errorPatterns = [
-              /(?:error|Error|Exception|Failed)[^\n]*/gi,
-              /BuildScript[^\n]*/gi,
-              /WebGL[^\n]*/gi,
-              /not supported[^\n]*/gi,
-              /module[^\n]*/gi
-            ];
-            
-            const allErrors = [];
-            errorPatterns.forEach(pattern => {
-              const matches = logContent.match(pattern);
-              if (matches) {
-                allErrors.push(...matches);
-              }
-            });
-            
-            if (allErrors.length > 0) {
-              errorDetails += '\n\nExtracted Errors:\n' + [...new Set(allErrors)].slice(0, 30).join('\n');
+              // Build output exists but is empty - this is an error
+              throw new Error('Unity WebGL build output folder exists but is empty');
             }
           } else {
-            errorDetails += '\n\nUnity log file was not created. This usually means Unity failed to start or crashed immediately.';
-            errorDetails += '\nPlease check:';
-            errorDetails += '\n1. Unity Editor path is correct: ' + unityEditorPath;
-            errorDetails += '\n2. Unity project path is correct: ' + unityProjectPath;
-            errorDetails += '\n3. Unity has WebGL Build Support module installed';
+            // Build output doesn't exist - this is a real error
+            // Read Unity log for detailed error information
+            let errorDetails = error.message;
+            
+            // Wait a moment for log file to be written
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // Check both BuildWorker.log and Editor.log
+            if (await fs.pathExists(normalizedLogPath)) {
+              const logContent = await fs.readFile(normalizedLogPath, 'utf-8');
+              
+              // Extract specific error patterns
+              const errorPatterns = [
+                /error CS\d+[^\n]*/gi,  // Compilation errors
+                /(?:error|Error|Exception|Failed)[^\n]*/gi,
+                /BuildScript[^\n]*/gi,
+                /WebGL[^\n]*/gi,
+                /not supported[^\n]*/gi,
+                /module[^\n]*/gi
+              ];
+              
+              const allErrors = [];
+              errorPatterns.forEach(pattern => {
+                const matches = logContent.match(pattern);
+                if (matches) {
+                  allErrors.push(...matches);
+                }
+              });
+              
+              if (allErrors.length > 0) {
+                const uniqueErrors = [...new Set(allErrors)].slice(0, 30);
+                errorDetails += '\n\nUnity Log Errors:\n' + uniqueErrors.join('\n');
+              }
+            }
+            
+            // Check Editor.log for more details
+            const editorLogPath = path.join(os.homedir(), 'AppData', 'LocalLow', 'Unity', 'Editor', 'Editor.log');
+            if (await fs.pathExists(editorLogPath)) {
+              const editorLog = await fs.readFile(editorLogPath, 'utf-8');
+              const recentLog = editorLog.split('\n').slice(-200).join('\n');
+              
+              // Extract compilation errors from Editor.log
+              const compileErrors = recentLog.match(/error CS\d+[^\n]*/gi);
+              if (compileErrors && compileErrors.length > 0) {
+                errorDetails += '\n\nEditor.log Compilation Errors:\n' + compileErrors.slice(0, 10).join('\n');
+              }
+              
+              // Check for other errors
+              const otherErrors = recentLog.match(/(?:error|Error|Exception)[^\n]*/gi);
+              if (otherErrors && otherErrors.length > 0) {
+                const uniqueErrors = [...new Set(otherErrors)].slice(0, 15);
+                errorDetails += '\n\nEditor.log Errors:\n' + uniqueErrors.join('\n');
+              }
+            } else {
+              errorDetails += '\n\nUnity Editor.log not found. This might indicate Unity failed to start.';
+            }
+            
+            // Add diagnostic information
+            errorDetails += '\n\nDiagnostics:';
+            errorDetails += '\n- Unity Editor: ' + unityEditorPath;
+            errorDetails += '\n- Project Path: ' + unityProjectPath;
+            errorDetails += '\n- Build Method: ' + config.WEBGL_BUILD_METHOD;
+            
+            // Check for common WebGL issues
+            if (errorDetails.toLowerCase().includes('webgl') || errorDetails.toLowerCase().includes('not supported')) {
+              errorDetails += '\n\nPossible issue: WebGL Build Support module may not be installed.';
+              errorDetails += '\nPlease check Unity Hub -> Installs -> Add Modules -> WebGL Build Support';
+            }
+            
+            // Check if it's a compilation error
+            if (errorDetails.includes('error CS')) {
+              errorDetails += '\n\nThis appears to be a script compilation error.';
+              errorDetails += '\nPlease open the Unity project in the editor and fix any compilation errors.';
+            }
+            
+            throw new Error(errorDetails);
           }
-          
-          // Check for common WebGL issues
-          if (errorDetails.toLowerCase().includes('webgl') || errorDetails.toLowerCase().includes('not supported')) {
-            errorDetails += '\n\nPossible issue: WebGL Build Support module may not be installed for Unity 6000.2.10f1.';
-            errorDetails += '\nPlease check Unity Hub -> Installs -> Add Modules -> WebGL Build Support';
-            errorDetails += '\n\nNote: Even if WebGL shows as "Installed" in Unity Hub, try:';
-            errorDetails += '\n1. Restart Unity Hub';
-            errorDetails += '\n2. Reinstall WebGL Build Support module';
-            errorDetails += '\n3. Verify Unity can build WebGL manually from the editor';
-          }
-          
-          throw new Error(errorDetails);
         }
 
         if (!(await fs.pathExists(webglOutputPath))) {

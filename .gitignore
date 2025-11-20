@@ -5,6 +5,10 @@ node_modules/
 uploads/
 *.backup
 
+# Godot project generated files
+new-game-project/Imported/user_model.glb
+new-game-project/Imported/user_model.glb.import
+
 # Unity project generated folders
 My project (1)/Library/
 My project (1)/Temp/

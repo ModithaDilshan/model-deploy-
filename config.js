@@ -46,6 +46,12 @@ module.exports = {
   WORKER_POLL_INTERVAL: parseNumber(process.env.WORKER_POLL_INTERVAL, 5000), // ms
   WORKER_MAX_CONCURRENT_JOBS: parseNumber(process.env.WORKER_MAX_CONCURRENT_JOBS, 1),
 
+  // MONGODB SETTINGS
+  MONGODB_URI: process.env.MONGODB_URI || 'mongodb+srv://ggplay_user:Vy0wUwcBuplLkrGg@cluster01.66soisj.mongodb.net/ggplay',
+
+  // AUTHENTICATION SETTINGS
+  JWT_SECRET: process.env.JWT_SECRET || '9dd2650e6060dda4f64ee125c6967de700e42d1a3555f6e43ae0625a19aecd2e19eca2a0729b62c7ce33888eda257d4f2df5b1e9f98c0fbdb27a2fcbe447db5a',
+
   // SERVER SETTINGS
   PORT: parseNumber(process.env.PORT, 3000)
 };

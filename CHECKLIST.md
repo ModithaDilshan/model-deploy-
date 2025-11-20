@@ -112,8 +112,7 @@ MongoDB: Connected
 - [ ] Try login with wrong password → Error shown
 - [ ] Try register with existing email → Error shown
 - [ ] Try upload without selecting file → Error shown
-- [ ] Try build without uploading → Error shownnnn
-
+- [ ] Try build without uploading → Error shown
 ## 🚀 Deployment Checklist
 
 ### Vercel Deployment

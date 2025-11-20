@@ -125,10 +125,8 @@ You can test the pipeline with `sample_models/SampleCharacter.obj`. The worker c
 
 ### 1. Prepare AWS resources
 
-1. Create two S3 buckets (or one bucket with separate prefixes): `unity-builder-uploads`, `unity-builder-builds`.
-2. Create a DynamoDB table `unity_build_jobs` with primary key `jobId` (string).
-3. Create an SQS queue `unity-build-jobs` with a suitable visibility timeout (> build duration).
-4. Configure IAM roles/policies:
+
+
    - **Web/API role:** permission to create presigned URLs, read/write DynamoDB, send messages to SQS.
    - **Worker role:** permission to read uploads bucket, write builds bucket, update DynamoDB, receive/delete SQS messages.
 
@@ -139,15 +137,6 @@ You can test the pipeline with `sample_models/SampleCharacter.obj`. The worker c
 3. Set environment variables in Vercel matching the table above.
 4. Deploy – Vercel hosts the static frontend and the Express API (via serverless adapters or self-hosted Node if preferred).
 
-### 3. Provision the build worker server
-
-1. Provision a Windows machine (EC2, bare metal, etc.) with sufficient CPU/RAM.
-2. Install **Godot 4.3+** via the official installer (ensure the executable supports `--headless` CLI use).
-3. In Godot, download and install the Windows + Web export templates.
-4. Install Node.js 18+.
-5. Pull this repository onto the server and run `npm install`.
-6. Set the `.env` values for AWS + Godot paths (`GODOT_EDITOR_PATH`, `GODOT_PROJECT_PATH`, etc.).
-7. Run `npm run worker` (use a Windows service or Task Scheduler to keep it running).
 
 ### 4. Validate end-to-end flow
 
@@ -175,4 +164,7 @@ You can test the pipeline with `sample_models/SampleCharacter.obj`. The worker c
 ## License
 
 ISC
+
+---
+Last updated: Test commit - verifying git workflow
 

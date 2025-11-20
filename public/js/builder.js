@@ -15,7 +15,7 @@ const BuilderView = {
     container.innerHTML = `
       <div class="builder-page">
         <div class="builder-header">
-          <div class="builder-logo">gg.play</div>
+          <div class="builder-logo" id="logoBtn" style="cursor: pointer;">gg.play</div>
           <div class="builder-nav">
             <button class="nav-tab active" id="gameBuilderTab">Game Builder</button>
             <button class="nav-tab disabled" id="dashboardTab">Dashboard</button>
@@ -40,7 +40,13 @@ const BuilderView = {
               <h3 class="section-label">Upload your game character 3D models</h3>
               <div class="character-grid">
                 <div class="asset-box upload-box" id="characterUploadBox">
-                  <div class="plus-icon">+</div>
+                  <div id="uploadBoxContent" class="upload-box-content">
+                    <div class="plus-icon">+</div>
+                  </div>
+                  <div id="previewBoxContent" class="preview-box-content" style="display: none;">
+                    <div class="model-preview-icon">📦</div>
+                    <div class="model-preview-name"></div>
+                  </div>
                   <input type="file" id="fileInput" accept=".glb,.obj" style="display: none;">
                 </div>
                 <div class="asset-box placeholder-box"></div>
@@ -138,6 +144,14 @@ const BuilderView = {
     const uploadBtn = document.getElementById('uploadBtn');
     const buildBtn = document.getElementById('buildBtn');
     const logoutBtn = document.getElementById('logoutBtn');
+    const logoBtn = document.getElementById('logoBtn');
+
+    // Logo click - go to landing
+    if (logoBtn) {
+      logoBtn.addEventListener('click', () => {
+        window.AppState.navigateTo('landing');
+      });
+    }
 
     // Logout
     if (logoutBtn) {
@@ -194,6 +208,21 @@ const BuilderView = {
     this.state.uploadedAssetKey = null;
     this.state.currentJobId = null;
 
+    // Update first box to show preview
+    const uploadBoxContent = document.getElementById('uploadBoxContent');
+    const previewBoxContent = document.getElementById('previewBoxContent');
+    const modelPreviewName = document.querySelector('.model-preview-name');
+    const characterUploadBox = document.getElementById('characterUploadBox');
+    
+    if (uploadBoxContent) uploadBoxContent.style.display = 'none';
+    if (previewBoxContent) previewBoxContent.style.display = 'flex';
+    if (modelPreviewName) {
+      const shortName = file.name.length > 15 ? file.name.substring(0, 12) + '...' : file.name;
+      modelPreviewName.textContent = shortName;
+    }
+    if (characterUploadBox) characterUploadBox.classList.add('has-file');
+
+    // Update bottom file info section
     const fileNameEl = document.getElementById('fileName');
     const fileSizeEl = document.getElementById('fileSize');
     const fileInfo = document.getElementById('fileInfo');

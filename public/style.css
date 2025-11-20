@@ -553,6 +553,44 @@ body {
     color: #000000;
 }
 
+.upload-box-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    height: 100%;
+}
+
+.preview-box-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+    height: 100%;
+}
+
+.model-preview-icon {
+    font-size: 56px;
+}
+
+.model-preview-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: #000000;
+    text-align: center;
+    word-break: break-word;
+    padding: 0 8px;
+}
+
+.asset-box.has-file {
+    background: #4ac5c5;
+    border-color: #0d6d6d;
+}
+
 .skin-upload-bar {
     height: 80px;
     border: 3px solid #1a8a8a;
@@ -707,52 +745,58 @@ body {
 
 /* File info */
 .file-info {
-    background: #f0fdf4;
-    border: 2px solid #86efac;
-    border-radius: 12px;
-    padding: 24px;
+    background: rgba(255, 255, 255, 0.25);
+    border: 3px solid rgba(255, 255, 255, 0.4);
+    border-radius: 16px;
+    padding: 24px 32px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin: 30px 0;
+    margin: 32px 0;
+    backdrop-filter: blur(10px);
 }
 
 .file-details {
     display: flex;
     align-items: center;
     gap: 16px;
+    flex: 1;
 }
 
 .file-icon {
-    font-size: 32px;
+    font-size: 40px;
+    color: #1e293b;
 }
 
 .file-name {
     font-weight: 600;
-    color: #1f2937;
-    margin-bottom: 4px;
+    color: #1e293b;
+    margin-bottom: 6px;
+    font-size: 16px;
 }
 
 .file-size {
     font-size: 14px;
-    color: #6b7280;
+    color: #475569;
 }
 
 .upload-btn {
     background: #10b981;
     color: white;
     border: none;
-    padding: 12px 32px;
-    border-radius: 8px;
+    padding: 14px 36px;
+    border-radius: 12px;
     font-size: 16px;
-    font-weight: 600;
+    font-weight: 700;
     cursor: pointer;
     transition: all 0.3s;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
 }
 
 .upload-btn:hover:not(:disabled) {
     background: #059669;
     transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
 }
 
 .upload-btn:disabled {

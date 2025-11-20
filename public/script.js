@@ -22,7 +22,7 @@ const statusDiv = document.getElementById('status');
 const downloadSection = document.getElementById('downloadSection');
 const downloadLink = document.getElementById('downloadLink');
 
-const ACCEPTED_FORMATS = ['.fbx', '.obj'];
+const ACCEPTED_FORMATS = ['.glb', '.obj'];
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 
 // Initialise
@@ -69,7 +69,7 @@ function initListeners() {
 function processSelectedFile(file) {
   const ext = '.' + file.name.split('.').pop().toLowerCase();
   if (!ACCEPTED_FORMATS.includes(ext)) {
-    showStatus('Invalid file type. Please upload .fbx or .obj files.', 'error');
+    showStatus('Invalid file type. Please upload .glb or .obj files.', 'error');
     return;
   }
 
@@ -221,7 +221,7 @@ async function checkJobStatus() {
 
 function updateProgress(job) {
   const buildType = job.buildType || 'exe';
-  const buildTypeLabel = buildType === 'webgl' ? 'WebGL' : 'EXE';
+  const buildTypeLabel = buildType === 'webgl' ? 'Web' : 'EXE';
   
   switch (job.status) {
     case 'queued':
@@ -264,7 +264,7 @@ async function handleCompletedJob(job) {
     const buildType = job.buildType || 'exe';
     if (buildType === 'webgl') {
       downloadLink.textContent = 'Download Web Build (ZIP)';
-      downloadLink.download = 'MyGame-WebGL.zip';
+      downloadLink.download = 'MyGame-Web.zip';
       
       // Add WebGL hosting instructions
       const instructionsDiv = document.createElement('div');
@@ -276,11 +276,12 @@ async function handleCompletedJob(job) {
       instructionsDiv.style.fontSize = '0.9em';
       instructionsDiv.style.color = '#1565c0';
       instructionsDiv.innerHTML = `
-        <strong>📦 WebGL Hosting Instructions:</strong><br>
+        <strong>📦 Web Hosting Instructions:</strong><br>
+        <strong>📦 Web Hosting Instructions:</strong><br>
         1. Extract the ZIP file after downloading<br>
-        2. Upload all extracted files to your web server<br>
-        3. Access the game via the index.html file<br>
-        4. Make sure your server supports serving .wasm and .data files
+        2. Upload the folder contents to any static web host<br>
+        3. Launch the game via the included index.html<br>
+        4. Ensure your host serves .wasm, .pck, and .data files with correct MIME types
       `;
       
       // Remove existing instructions if any

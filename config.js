@@ -1,10 +1,9 @@
 // ============================================
-// UNITY GAME BUILDER CONFIGURATION
+// GODOT GAME BUILDER CONFIGURATION
 // ============================================
-// 
-// IMPORTANT: All values below are PLACEHOLDERS
-// You MUST update these with actual values from your Unity developer
-// before using this system in production.
+//
+// IMPORTANT: All values below are PLACEHOLDERS.
+// Update them with the real paths/IDs used by your Godot build worker.
 //
 // ============================================
 
@@ -13,15 +12,24 @@ const parseNumber = (value, fallback) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const parseList = (value, fallback) => {
+  if (!value || typeof value !== 'string') return fallback;
+  return value
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+};
+
 module.exports = {
-  // UNITY PROJECT SETTINGS (used by build worker)
-  UNITY_PROJECT_PATH: process.env.UNITY_PROJECT_PATH || 'D:/New folder (40)/My project (1)',
-  UNITY_EDITOR_PATH: process.env.UNITY_EDITOR_PATH || 'C:/Program Files/Unity/Hub/Editor/2022.3.0f1/Editor/Unity.exe',
-  MODEL_TARGET_BASE: process.env.MODEL_TARGET_BASE || 'Assets/Resources/Character/Character',
-  BUILD_OUTPUT_PATH: process.env.BUILD_OUTPUT_PATH || 'Builds/MyGame.exe',
-  BUILD_METHOD: process.env.BUILD_METHOD || 'BuildScript.BuildGame',
-  WEBGL_BUILD_OUTPUT_PATH: process.env.WEBGL_BUILD_OUTPUT_PATH || 'Builds/WebGL',
-  WEBGL_BUILD_METHOD: process.env.WEBGL_BUILD_METHOD || 'BuildScript.BuildWebGL',
+  // GODOT PROJECT SETTINGS (used by build worker)
+  GODOT_PROJECT_PATH: process.env.GODOT_PROJECT_PATH || 'D:/New folder (40)/new-game-project',
+  GODOT_EDITOR_PATH: process.env.GODOT_EDITOR_PATH || 'C:/Program Files/Godot/Godot_v4.3-stable_win64.exe',
+  GODOT_IMPORTED_MODEL_PATH: process.env.GODOT_IMPORTED_MODEL_PATH || 'Imported/user_model.glb',
+  GODOT_EXPORT_PRESET_WIN: process.env.GODOT_EXPORT_PRESET_WIN || 'Windows Desktop',
+  GODOT_EXPORT_PRESET_WEB: process.env.GODOT_EXPORT_PRESET_WEB || 'Web',
+  GODOT_WINDOWS_OUTPUT_NAME: process.env.GODOT_WINDOWS_OUTPUT_NAME || 'MyGame.exe',
+  GODOT_WEB_OUTPUT_NAME: process.env.GODOT_WEB_OUTPUT_NAME || 'index.html',
+  SUPPORTED_MODEL_FORMATS: parseList(process.env.SUPPORTED_MODEL_FORMATS, ['glb', 'obj']),
   BUILD_TYPE_EXE: 'exe',
   BUILD_TYPE_WEBGL: 'webgl',
 

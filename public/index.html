@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Unity Game Builder</title>
+    <title>Godot Game Builder</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>Unity Game Builder</h1>
+            <h1>Godot Game Builder</h1>
             <p class="subtitle">Upload your 3D model and build your custom game</p>
         </header>
 
@@ -26,9 +26,9 @@
                         </svg>
                         <p class="upload-text">Drag and drop your 3D model here</p>
                         <p class="upload-subtext">or</p>
-                        <input type="file" id="fileInput" accept=".fbx,.obj" style="display: none;">
+                        <input type="file" id="fileInput" accept=".glb,.obj" style="display: none;">
                         <button class="btn btn-primary" id="chooseFileBtn">Choose File</button>
-                        <p class="file-info">Supported formats: .fbx, .obj (Max 100MB)</p>
+                        <p class="file-info">Supported formats: .glb, .obj (Max 100MB)</p>
                     </div>
                 </div>
 
@@ -65,8 +65,8 @@
                     <label class="build-type-option">
                         <input type="radio" name="buildType" value="webgl" id="buildTypeWebGL">
                         <div class="build-type-content">
-                            <strong>Web Export (WebGL)</strong>
-                            <span class="build-type-desc">Embed in your website</span>
+                            <strong>Web Export (HTML5/WebGL)</strong>
+                            <span class="build-type-desc">Host on any static web server</span>
                         </div>
                     </label>
                 </div>
@@ -93,7 +93,7 @@
         </main>
 
         <footer>
-            <p>Unity Game Builder &copy; 2025</p>
+            <p>Godot Game Builder &copy; 2025</p>
         </footer>
     </div>
 

@@ -91,7 +91,7 @@ app.use((req, res) => {
 const PORT = config.PORT || 3000;
 app.listen(PORT, () => {
   console.log('===========================================');
-  console.log('Unity Game Builder Server');
+  console.log('Godot Game Builder Server');
   console.log('===========================================');
   console.log(`Server running on http://localhost:${PORT}`);
   console.log(`AWS Region: ${config.AWS_REGION}`);

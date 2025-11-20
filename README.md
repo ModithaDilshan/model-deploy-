@@ -1,6 +1,6 @@
-# Unity Game Builder
+# Godot Game Builder
 
-A scalable pipeline for generating customised Unity game builds. Users upload character models via the web UI, the files are stored in S3, jobs are queued for dedicated build workers, Unity builds run on Windows servers, and finished executables are delivered back through S3.
+A scalable pipeline for generating customised **Godot** game builds. Users upload character models through the Vercel-hosted web UI, the files are stored in S3, jobs are queued in SQS/DynamoDB, dedicated Windows workers swap the asset into the included Godot project, export Windows or Web builds via the Godot CLI, and upload the finished artifacts back to S3 for download.
 
 ## High-level architecture
 
@@ -13,18 +13,18 @@ Browser → Vercel frontend → API endpoints
 
 Dedicated build worker(s)
   ├── Poll SQS for jobs
-  ├── Download model from S3
-  ├── Replace placeholder in Unity project
-  ├── Run Unity CLI build
-  └── Upload .exe back to S3 + update status
+  ├── Download & convert uploaded model (OBJ ➜ glb)
+  ├── Copy model into Godot project + force re-import
+  ├── Run Godot CLI export (Windows or Web)
+  └── Upload build to S3 + update job status
 ```
 
 ## Prerequisites
 
 - Node.js 18+ and npm
 - AWS account with permissions for S3, SQS, DynamoDB
-- Windows build server(s) with Unity Editor installed
-- Unity project configured with `BuildScript.BuildGame`
+- Windows build server(s) with **Godot 4.3+** (editor + export templates)
+- Git + permission to pull this repository
 
 ## Install dependencies
 
@@ -36,14 +36,17 @@ npm install
 
 | Key | Description |
 | --- | --- |
-| `UNITY_PROJECT_PATH` | Absolute path to the Unity project on the build worker |
-| `UNITY_EDITOR_PATH` | Path to Unity Editor executable |
-| `MODEL_TARGET_BASE` | Relative path (without extension) where uploaded models should be copied |
-| `BUILD_OUTPUT_PATH` | Relative path to the generated executable in the Unity project |
-| `BUILD_METHOD` | Fully-qualified build method executed by Unity |
+| `GODOT_PROJECT_PATH` | Absolute path to the checked-out Godot project on the worker |
+| `GODOT_EDITOR_PATH` | Path to the Godot executable (CLI capable) |
+| `GODOT_IMPORTED_MODEL_PATH` | Path inside the project where the uploaded model should be copied (e.g. `Imported/user_model.glb`) |
+| `GODOT_EXPORT_PRESET_WIN` | Name of the Windows export preset defined in `export_presets.cfg` |
+| `GODOT_EXPORT_PRESET_WEB` | Name of the Web export preset |
+| `GODOT_WINDOWS_OUTPUT_NAME` | Filename to produce for Windows exports (default `MyGame.exe`) |
+| `GODOT_WEB_OUTPUT_NAME` | Entry file name for Web exports (default `index.html`) |
+| `SUPPORTED_MODEL_FORMATS` | Comma-separated list of accepted uploads (`glb,obj`) |
 | `AWS_REGION` | AWS region for all SDK calls |
 | `UPLOADS_BUCKET` | S3 bucket receiving uploaded models |
-| `BUILDS_BUCKET` | S3 bucket used to store completed builds |
+| `BUILDS_BUCKET` | S3 bucket storing completed builds |
 | `JOBS_TABLE_NAME` | DynamoDB table storing job metadata |
 | `JOBS_QUEUE_URL` | SQS queue URL for build jobs |
 | `UPLOAD_URL_TTL` | Seconds that presigned upload URLs remain valid (default 900) |
@@ -60,32 +63,32 @@ Request a presigned URL that lets the browser upload directly to S3.
 
 Input body:
 ```json
-{ "fileName": "Character.fbx", "fileType": "application/octet-stream" }
+{ "fileName": "Character.glb", "fileType": "application/octet-stream" }
 ```
 
 Response:
 ```json
-{ "success": true, "uploadUrl": "https://...", "assetKey": "uploads/uuid-file.fbx" }
+{ "success": true, "uploadUrl": "https://...", "assetKey": "uploads/uuid-file.glb" }
 ```
 
 ### `POST /api/jobs`
 Queue a new build job once an asset is stored in S3.
 
 ```json
-{ "assetKey": "uploads/uuid-file.fbx", "originalFileName": "Character.fbx" }
+{ "assetKey": "uploads/uuid-file.glb", "originalFileName": "Character.glb", "buildType": "exe" }
 ```
 
 Returns the job metadata (`jobId`, `status` = `queued`, timestamps, etc.).
 
-### `GET /api/jobs/:jobId`
+### `GET /api/jobs?jobId=...`
 Retrieve the latest job information (status can be `queued`, `processing`, `completed`, `failed`).
 
-### `GET /api/jobs/:jobId/download`
-For completed jobs, returns a presigned S3 URL to download the generated executable.
+### `GET /api/jobs/download?jobId=...`
+For completed jobs, returns a presigned S3 URL to download the generated build.
 
 ## Frontend workflow (`public/script.js`)
 
-1. User selects a `.fbx` or `.obj` file (max 100 MB).
+1. User selects a `.glb` or `.obj` file (max 100 MB).
 2. Browser requests `/api/upload-url`, then uploads the file directly to S3 using the returned URL.
 3. Browser calls `/api/jobs` with the S3 key to queue a build.
 4. UI polls `/api/jobs/:jobId` until the worker finishes.
@@ -93,7 +96,7 @@ For completed jobs, returns a presigned S3 URL to download the generated executa
 
 ## Build worker (`worker/index.js`)
 
-Run on a Windows machine:
+Run on a Windows machine that has Godot installed:
 
 ```bash
 npm run worker
@@ -101,22 +104,22 @@ npm run worker
 
 Responsibilities:
 
-- Poll the SQS queue for jobs.
-- Download uploaded assets from the uploads bucket (optional – useful for auditing).
-- Swap the uploaded model into the Unity project and run the Unity CLI build.
-- Upload the executable to the builds bucket.
-- Update job status in DynamoDB.
+- Poll SQS for jobs and mark progress in DynamoDB.
+- Download the uploaded asset from the uploads bucket.
+- Convert `.obj` uploads to `.glb` via `obj2gltf` and copy the result into the Godot project (`res://Imported/user_model.glb`), forcing a re-import.
+- Run the Godot CLI exports (Windows preset for `.exe`, Web preset for HTML/wasm).
+- Zip the Web export, upload finished artifacts to the builds bucket, and update the job status.
 
-## Sample Unity project (included)
+## Sample Godot project (included)
 
-Located at `My project (1)`:
+Located at `new-game-project/`:
 
-- `Assets/Resources/Character/Character.obj` – placeholder model swapped during builds.
-- `Assets/Scripts/CharacterLoader.cs` – loads the Resources model at runtime.
-- `Assets/Scenes/SampleScene.unity` – contains a `CharacterRoot` with the loader attached.
-- `Assets/Editor/BuildScript.cs` – exposes `BuildScript.BuildGame`, which the worker invokes.
+- `scenes/Main.tscn` – scene with light, rotating camera pivot, and placeholder mesh.
+- `scripts/ModelLoader.gd` – loads `res://Imported/user_model.glb` if present, otherwise shows the fallback cube.
+- `export_presets.cfg` – defines `Windows Desktop` and `Web` presets used by the worker.
+- `Imported/` – target directory for the uploaded model (the worker copies the converted asset here each job).
 
-Use `sample_models/SampleCharacter.obj` to test the pipeline locally.
+You can test the pipeline with `sample_models/SampleCharacter.obj`. The worker converts it to `.glb`, imports it into Godot, and runs both export presets automatically.
 
 ## Manual deployment guide
 
@@ -139,21 +142,21 @@ Use `sample_models/SampleCharacter.obj` to test the pipeline locally.
 ### 3. Provision the build worker server
 
 1. Provision a Windows machine (EC2, bare metal, etc.) with sufficient CPU/RAM.
-2. Install Unity (matching the version used to author the project).
-3. Install Node.js.
-4. Pull this repository onto the server and run `npm install`.
-5. Copy the Unity project (`My project (1)`) to `UNITY_PROJECT_PATH` **if** you’ll build on demand.
-6. Create a `.env` containing the AWS configuration and Unity paths.
+2. Install **Godot 4.3+** via the official installer (ensure the executable supports `--headless` CLI use).
+3. In Godot, download and install the Windows + Web export templates.
+4. Install Node.js 18+.
+5. Pull this repository onto the server and run `npm install`.
+6. Set the `.env` values for AWS + Godot paths (`GODOT_EDITOR_PATH`, `GODOT_PROJECT_PATH`, etc.).
 7. Run `npm run worker` (use a Windows service or Task Scheduler to keep it running).
 
 ### 4. Validate end-to-end flow
 
 1. Open the deployed Vercel site.
-2. Upload `sample_models/SampleCharacter.obj` → file stored in uploads bucket.
+2. Upload `sample_models/SampleCharacter.obj` → file stored in the uploads bucket.
 3. Confirm a job record appears in DynamoDB with status `queued`.
-4. Worker picks up the job, copies the uploaded model to Unity, runs Unity build, and uploads the build to the `builds/` prefix.
+4. Worker picks up the job, converts/imports the model into the Godot project, runs the requested export, and uploads the artifact to the `builds/` prefix.
 5. Job status becomes `completed`; the download button returns a presigned URL.
-6. Download `MyGame.exe` and run locally to verify the new character model.
+6. Download the `.exe` or `.zip` (Web) and verify the imported model in the running build.
 
 ### 5. Operations checklist
 
@@ -165,8 +168,9 @@ Use `sample_models/SampleCharacter.obj` to test the pipeline locally.
 ## Troubleshooting
 
 - **Job stuck in queued:** worker not running or lacks SQS/DynamoDB permissions.
-- **Job fails immediately:** check Unity paths, asset compatibility, build logs (`BuildWorker.log`).
-- **Download link fails:** ensure builds bucket permissions and `DOWNLOAD_URL_TTL` values are correct.
+- **Job fails immediately:** verify `GODOT_EDITOR_PATH` and `GODOT_PROJECT_PATH`, ensure export templates are installed, and confirm the uploaded asset is a supported format (`glb` or `obj`).
+- **OBJ uploads fail to convert:** `obj2gltf` requires manifold geometry; try exporting the model as `.glb` directly from your DCC package.
+- **Download link fails:** ensure the builds bucket policy allows the worker role to upload and that `DOWNLOAD_URL_TTL` is long enough for the client to fetch the file.
 
 ## License
 

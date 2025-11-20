@@ -16,65 +16,115 @@ const BuilderView = {
       <div class="builder-page">
         <div class="builder-header">
           <div class="builder-logo">gg.play</div>
+          <div class="builder-nav">
+            <button class="nav-tab active" id="gameBuilderTab">Game Builder</button>
+            <button class="nav-tab disabled" id="dashboardTab">Dashboard</button>
+          </div>
           <div class="builder-user">
             <span id="userEmail">${window.AppState.user?.email || ''}</span>
             <button id="logoutBtn" class="logout-btn">Logout</button>
           </div>
         </div>
 
-        <div class="builder-container">
-          <h1>Godot Game Builder</h1>
-          <p class="subtitle">Upload your 3D character model and build a custom game</p>
-
-          <div id="uploadArea" class="upload-area">
-            <div class="upload-icon">📁</div>
-            <p>Drag & drop your model file here</p>
-            <p class="upload-hint">or</p>
-            <button id="chooseFileBtn" class="choose-file-btn">Choose File</button>
-            <input type="file" id="fileInput" accept=".glb,.obj" style="display: none;">
-            <p class="file-requirements">Supported formats: .glb, .obj (max 100MB)</p>
+        <div class="builder-content">
+          <div class="view-mode-toggle">
+            <button class="view-mode-btn disabled" id="view2DBtn">2D</button>
+            <button class="view-mode-btn active" id="view3DBtn">3D</button>
           </div>
 
-          <div id="fileInfo" class="file-info" style="display: none;">
-            <div class="file-details">
-              <span class="file-icon">📄</span>
-              <div>
-                <div id="fileName" class="file-name"></div>
-                <div id="fileSize" class="file-size"></div>
+          <div class="game-builder-panel">
+            <h2 class="panel-title">Game asset management</h2>
+
+            <!-- Character Models Section -->
+            <div class="asset-section">
+              <h3 class="section-label">Upload your game character 3D models</h3>
+              <div class="character-grid">
+                <div class="asset-box upload-box" id="characterUploadBox">
+                  <div class="plus-icon">+</div>
+                  <input type="file" id="fileInput" accept=".glb,.obj" style="display: none;">
+                </div>
+                <div class="asset-box placeholder-box"></div>
+                <div class="asset-box placeholder-box"></div>
+                <div class="asset-box placeholder-box"></div>
+                <div class="asset-box placeholder-box"></div>
+                <div class="asset-box placeholder-box"></div>
               </div>
             </div>
-            <button id="uploadBtn" class="upload-btn">Upload Model</button>
-          </div>
 
-          <div id="buildSection" class="build-section" style="display: none;">
-            <h3>Select Build Type</h3>
-            <div class="build-type-selector">
-              <label class="build-type-option">
-                <input type="radio" name="buildType" value="exe" checked>
-                <span>Windows EXE</span>
-              </label>
-              <label class="build-type-option">
-                <input type="radio" name="buildType" value="webgl">
-                <span>WebGL (Browser)</span>
-              </label>
+            <!-- Character Skins Section -->
+            <div class="asset-section">
+              <h3 class="section-label">Upload your game character skins</h3>
+              <div class="skin-upload-bar disabled">
+                <div class="plus-icon">+</div>
+              </div>
             </div>
-            <button id="buildBtn" class="build-btn">Build Game</button>
-          </div>
 
-          <div id="buildStatus" class="build-status" style="display: none;">
-            <h3>Build Progress</h3>
-            <div class="progress-container">
-              <div id="progressBar" class="progress-bar"></div>
+            <!-- Game Mode Section -->
+            <div class="asset-section">
+              <h3 class="section-label">Select the game mode</h3>
+              <div class="game-mode-selector">
+                <button class="game-mode-btn disabled">RPG</button>
+                <button class="game-mode-btn disabled">Platformer</button>
+                <button class="game-mode-btn active" id="shooterModeBtn">3rd person shooter</button>
+              </div>
             </div>
-            <p id="statusText" class="status-text">Preparing...</p>
-          </div>
 
-          <div id="downloadSection" class="download-section" style="display: none;">
-            <h3>✅ Build Complete!</h3>
-            <a id="downloadLink" href="#" class="download-btn">Download Game</a>
-          </div>
+            <!-- Game World Section -->
+            <div class="asset-section">
+              <h3 class="section-label">Select / Upload a game world</h3>
+              <div class="world-grid">
+                <div class="asset-box placeholder-box disabled"></div>
+                <div class="asset-box placeholder-box disabled"></div>
+                <div class="asset-box placeholder-box disabled"></div>
+              </div>
+            </div>
 
-          <div id="status" class="status-message" style="display: none;"></div>
+            <!-- File Info (shown after file selected) -->
+            <div id="fileInfo" class="file-info-inline" style="display: none;">
+              <div class="file-details">
+                <span class="file-icon">📄</span>
+                <div>
+                  <div id="fileName" class="file-name"></div>
+                  <div id="fileSize" class="file-size"></div>
+                </div>
+              </div>
+              <button id="uploadBtn" class="upload-btn">Upload Model</button>
+            </div>
+
+            <!-- Build Section -->
+            <div id="buildSection" class="build-section-inline" style="display: none;">
+              <h3 class="section-label">Select Build Type</h3>
+              <div class="build-type-selector">
+                <label class="build-type-option">
+                  <input type="radio" name="buildType" value="exe" checked>
+                  <span>Windows EXE</span>
+                </label>
+                <label class="build-type-option">
+                  <input type="radio" name="buildType" value="webgl">
+                  <span>WebGL (Browser)</span>
+                </label>
+              </div>
+              <button id="buildBtn" class="build-btn">Build Game</button>
+            </div>
+
+            <!-- Build Status -->
+            <div id="buildStatus" class="build-status" style="display: none;">
+              <h3>Build Progress</h3>
+              <div class="progress-container">
+                <div id="progressBar" class="progress-bar"></div>
+              </div>
+              <p id="statusText" class="status-text">Preparing...</p>
+            </div>
+
+            <!-- Download Section -->
+            <div id="downloadSection" class="download-section" style="display: none;">
+              <h3>✅ Build Complete!</h3>
+              <a id="downloadLink" href="#" class="download-btn">Download Game</a>
+            </div>
+
+            <!-- Status Messages -->
+            <div id="status" class="status-message" style="display: none;"></div>
+          </div>
         </div>
       </div>
     `;
@@ -84,8 +134,7 @@ const BuilderView = {
 
   attachEventListeners() {
     const fileInput = document.getElementById('fileInput');
-    const chooseFileBtn = document.getElementById('chooseFileBtn');
-    const uploadArea = document.getElementById('uploadArea');
+    const characterUploadBox = document.getElementById('characterUploadBox');
     const uploadBtn = document.getElementById('uploadBtn');
     const buildBtn = document.getElementById('buildBtn');
     const logoutBtn = document.getElementById('logoutBtn');
@@ -97,33 +146,15 @@ const BuilderView = {
       });
     }
 
-    // File selection
-    if (chooseFileBtn) {
-      chooseFileBtn.addEventListener('click', () => fileInput?.click());
+    // Character upload box click
+    if (characterUploadBox) {
+      characterUploadBox.addEventListener('click', () => fileInput?.click());
     }
 
+    // File selection
     if (fileInput) {
       fileInput.addEventListener('change', (event) => {
         const file = event.target.files[0];
-        if (file) this.processSelectedFile(file);
-      });
-    }
-
-    // Drag & drop
-    if (uploadArea) {
-      uploadArea.addEventListener('dragover', (event) => {
-        event.preventDefault();
-        uploadArea.classList.add('dragover');
-      });
-
-      uploadArea.addEventListener('dragleave', () => {
-        uploadArea.classList.remove('dragover');
-      });
-
-      uploadArea.addEventListener('drop', (event) => {
-        event.preventDefault();
-        uploadArea.classList.remove('dragover');
-        const file = event.dataTransfer.files[0];
         if (file) this.processSelectedFile(file);
       });
     }
